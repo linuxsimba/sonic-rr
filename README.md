@@ -1,13 +1,21 @@
 # sonic-rr: HPN Pivot lab
 
-A containerlab reproduction of Alibaba's "HPN Pivot" (OCP 2026). Leaves learn GPU service routes
-from a route-server cluster (FRR) over multihop eBGP, with a loopback next hop resolved recursively
-over a SONiC spine underlay. They never learn GPU routes from the spines.
+A containerlab reproduction of the "HPN Pivot" routing design Alibaba Cloud presented at the
+OCP Global Summit 2026. Leaves learn GPU service routes from a route-server cluster (FRR) over
+multihop eBGP, with a loopback next hop resolved recursively over a SONiC spine underlay, instead
+of learning every GPU route from every spine. A pytest suite compares it with a traditional
+leaf/spine fabric.
+
+This is an independent lab built from the public talk. It is not affiliated with or endorsed by
+Alibaba, and it only approximates their design.
 
 ![topology](topology.svg)
 
-The diagram shows the first 2×2 version; the
-lab is now generated from counts (default 4 spines, 4 leaves, 2 route servers, 4 GPU servers).
+## Prerequisites
+- Linux host with Docker and [containerlab](https://containerlab.dev) (tested: containerlab 0.82, Docker 29)
+- Python 3.11+ (for Ansible and pytest)
+- About 6 GB of free RAM for the default lab (each SONiC-VS container uses ~370 MB)
+- The `docker-sonic-vs` image from the SONiC build server (see below; about 900 MB)
 
 ## Lab shape: [ansible/group_vars/all.yml](ansible/group_vars/all.yml)
 ```yaml
@@ -122,3 +130,6 @@ traceroute -n -s 10.101.1.1 10.102.2.1
 ```bash
 containerlab destroy -t topo.clab.yml --cleanup
 ```
+
+## License
+[MIT](LICENSE)

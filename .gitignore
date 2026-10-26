@@ -1,5 +1,5 @@
 clab-*/
-gnmi/run-*/
+*.code-workspace
 images/
 PLAN.md
 __pycache__/

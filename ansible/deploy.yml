@@ -18,10 +18,8 @@
     - name: Generate topo.clab.yml
       ansible.builtin.template: {src: templates/topo.clab.yml.j2, dest: "{{ repo }}/topo.clab.yml"}
 
-    - name: Remove the old lab containers (also nodes dropped from the counts) and the gNMI sidecar
-      ansible.builtin.shell: >
-        docker ps -aq --filter label=containerlab={{ lab }} | xargs -r docker rm -f;
-        docker rm -f gnmi-leaf1 2>/dev/null; true
+    - name: Remove the old lab containers (also nodes dropped from the counts)
+      ansible.builtin.shell: docker ps -aq --filter label=containerlab={{ lab }} | xargs -r docker rm -f
 
     - name: Deploy with containerlab
       ansible.builtin.command: containerlab deploy -t topo.clab.yml --reconfigure
