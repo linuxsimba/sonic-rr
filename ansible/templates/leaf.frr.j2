@@ -1,0 +1,92 @@
+{% set L = idx | int %}
+{% set lo = '10.0.0.' ~ (10 + L) %}
+{% set rail = 100 + L %}
+hostname {{ inventory_hostname }}
+{% include 'bfd.j2' %}
+
+!
+! reach the route servers' loopbacks over the direct /31s
+{% for r in range(1, route_servers + 1) %}
+ip route 10.0.0.{{ 100 + r }}/32 10.2.{{ L }}.{{ 2 * r - 1 }}
+{% endfor %}
+! one /32 host route per GPU on this rail (advertised via redistribute static)
+{% for s in range(1, servers + 1) %}
+ip route 10.{{ rail }}.{{ s }}.1/32 Ethernet{{ 4 * (spines + route_servers + s - 1) }}
+{% endfor %}
+!
+ip prefix-list LOOPBACKS seq 10 permit 10.0.0.0/24 ge 32
+ip prefix-list MY-LO seq 10 permit {{ lo }}/32
+ip prefix-list GPU seq 10 permit 10.96.0.0/11 ge 32
+ip prefix-list MY-GPU seq 10 permit 10.{{ rail }}.0.0/16 ge 32
+!
+route-map GPU-HOSTS permit 10
+ match ip address prefix-list MY-GPU
+!
+! to spines: own loopback, plus own GPU /32s unless strict
+route-map TO-SPINE permit 10
+ match ip address prefix-list MY-LO
+!
+{% if mode == 'strict' %}
+no route-map TO-SPINE permit 20
+{% else %}
+route-map TO-SPINE permit 20
+ match ip address prefix-list MY-GPU
+{% endif %}
+!
+! from spines: loopbacks, plus every GPU /32 in traditional mode
+route-map FROM-SPINE permit 10
+ match ip address prefix-list LOOPBACKS
+!
+{% if mode == 'traditional' %}
+route-map FROM-SPINE permit 20
+ match ip address prefix-list GPU
+{% else %}
+no route-map FROM-SPINE permit 20
+{% endif %}
+!
+! to route servers: own GPU /32s with our loopback as next hop
+route-map TO-RSC permit 10
+ match ip address prefix-list MY-GPU
+ set ip next-hop {{ lo }}
+!
+route-map FROM-RSC permit 10
+ match ip address prefix-list GPU
+!
+router bgp {{ 65000 + L }}
+ bgp router-id {{ lo }}
+ no bgp ebgp-requires-policy
+ bgp bestpath as-path multipath-relax
+ neighbor FABRIC peer-group
+ neighbor FABRIC remote-as external
+{% for n in range(spines) %}
+ neighbor Ethernet{{ 4 * n }} interface peer-group FABRIC
+{% endfor %}
+ neighbor RSC peer-group
+ neighbor RSC remote-as 65500
+ neighbor RSC ebgp-multihop 2
+ neighbor RSC update-source Loopback0
+ no neighbor RSC enforce-first-as
+{% for r in range(1, route_servers + 1) %}
+ neighbor 10.0.0.{{ 100 + r }} peer-group RSC
+ {{ '' if mode == 'traditional' else 'no ' }}neighbor 10.0.0.{{ 100 + r }} shutdown
+{% endfor %}
+{% for g in ['FABRIC', 'RSC'] %}
+ {{ 'neighbor ' ~ g ~ ' bfd profile FAST' if bfd | bool else 'no neighbor ' ~ g ~ ' bfd' }}
+{% endfor %}
+{% if inventory_hostname in bmp_leaves %}
+ ! stream every peer's routes (before and after our inbound policy) to the BMP collector
+ bmp targets collector
+  bmp monitor ipv4 unicast pre-policy
+  bmp monitor ipv4 unicast post-policy
+  bmp connect {{ bmp_collector }} port {{ bmp_port }} min-retry 1000 max-retry 5000
+ exit
+{% endif %}
+ address-family ipv4 unicast
+  network {{ lo }}/32
+  redistribute static route-map GPU-HOSTS
+  neighbor FABRIC route-map FROM-SPINE in
+  neighbor FABRIC route-map TO-SPINE out
+  neighbor RSC route-map FROM-RSC in
+  neighbor RSC route-map TO-RSC out
+  maximum-paths 64
+ exit-address-family

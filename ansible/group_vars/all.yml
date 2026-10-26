@@ -1,0 +1,25 @@
+# ---- lab shape: change these, then run deploy.yml and configure.yml ----
+lab: sonic-rr
+spines: 4
+leaves: 4             # one GPU rail per leaf: every server gets one GPU NIC per leaf
+route_servers: 2
+servers: 4            # per leaf: spines + route_servers + servers must be <= 32 (sonic-vs port count)
+
+# ---- design ----
+mode: pivot           # pivot | strict | traditional
+bfd: true
+
+# ---- BMP: these leaves stream their BGP data to a collector (pytest listens on the host) ----
+bmp_leaves: [leaf1]
+bmp_collector: 172.20.20.1      # the host, as seen from the containerlab management network
+bmp_port: 5000
+
+# ---- images ----
+sonic_image: docker-sonic-vs:latest
+frr_image: quay.io/frrouting/frr:10.2.1
+server_image: gpu-server:latest
+
+# ---- how Ansible reaches lab nodes: docker exec into the container, no SSH ----
+ansible_connection: community.docker.docker
+ansible_host: "clab-{{ lab }}-{{ inventory_hostname }}"
+ansible_python_interpreter: /usr/bin/python3

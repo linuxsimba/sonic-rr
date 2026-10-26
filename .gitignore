@@ -1,4 +1,10 @@
 clab-*/
+gnmi/run-*/
 images/
 PLAN.md
+__pycache__/
+.pytest_cache/
+results/
+topo.clab.yml
 .topo.clab.yml.bak
+.venv/

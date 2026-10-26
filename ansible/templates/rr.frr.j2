@@ -1,0 +1,32 @@
+{% set R = idx | int %}
+hostname {{ inventory_hostname }}
+{% include 'bfd.j2' %}
+
+!
+interface lo
+ ip address 10.0.0.{{ 100 + R }}/32
+!
+{% for l in range(1, leaves + 1) %}
+interface eth{{ l }}
+ ip address 10.2.{{ l }}.{{ 2 * R - 1 }}/31
+exit
+!
+ip route 10.0.0.{{ 10 + l }}/32 10.2.{{ l }}.{{ 2 * R - 2 }}
+{% endfor %}
+!
+! route server: multihop eBGP to every leaf loopback; keeps the leaf's AS path and next hop
+router bgp 65500
+ bgp router-id 10.0.0.{{ 100 + R }}
+ no bgp ebgp-requires-policy
+ neighbor LEAF peer-group
+ neighbor LEAF ebgp-multihop 2
+ neighbor LEAF update-source lo
+{% for l in range(1, leaves + 1) %}
+ neighbor 10.0.0.{{ 10 + l }} remote-as {{ 65000 + l }}
+ neighbor 10.0.0.{{ 10 + l }} peer-group LEAF
+{% endfor %}
+ {{ 'neighbor LEAF bfd profile FAST' if bfd | bool else 'no neighbor LEAF bfd' }}
+ address-family ipv4 unicast
+  neighbor LEAF route-server-client
+  neighbor LEAF attribute-unchanged next-hop
+ exit-address-family

@@ -1,0 +1,15 @@
+# Add or remove synthetic GPU /32s behind one leaf, as a single burst of BGP churn.
+#   ansible-playbook ansible/scale.yml -e scale_action=add -e scale_count=10000 -e scale_leaf=leaf2
+- ansible.builtin.import_playbook: inventory.yml
+
+- name: Inject GPU routes
+  hosts: "{{ scale_leaf | default('leaf2') }}"
+  gather_facts: false
+  vars:
+    scale_action: add       # add | del
+    scale_count: 10000      # max 32768: they live in 10.<100+leaf>.128.0/17
+  tasks:
+    - name: Render static routes (blackhole is fine, this only exercises the control plane)
+      ansible.builtin.template: {src: templates/scale.frr.j2, dest: /tmp/scale.conf}
+    - name: Apply them in one batch
+      ansible.builtin.command: vtysh -f /tmp/scale.conf

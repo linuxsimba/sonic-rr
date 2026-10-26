@@ -1,0 +1,21 @@
+# Creates the lab's hosts and groups from the counts in group_vars/all.yml.
+# Imported at the top of every other playbook. `idx` is the node's number (spine3 -> 3).
+- name: Build inventory from the lab counts
+  hosts: localhost
+  gather_facts: false
+  tasks:
+    - name: Spines
+      ansible.builtin.add_host: {name: "spine{{ item }}", groups: [spines, sonic], idx: "{{ item }}"}
+      loop: "{{ range(1, spines + 1) | list }}"
+
+    - name: Leaves
+      ansible.builtin.add_host: {name: "leaf{{ item }}", groups: [leaves, sonic], idx: "{{ item }}"}
+      loop: "{{ range(1, leaves + 1) | list }}"
+
+    - name: Route servers
+      ansible.builtin.add_host: {name: "rr{{ item }}", groups: [route_servers], idx: "{{ item }}"}
+      loop: "{{ range(1, route_servers + 1) | list }}"
+
+    - name: GPU servers
+      ansible.builtin.add_host: {name: "srv{{ item }}", groups: [servers], idx: "{{ item }}"}
+      loop: "{{ range(1, servers + 1) | list }}"

@@ -1,0 +1,108 @@
+# Configure every lab node. Re-run with -e mode=traditional|pivot|strict or -e bfd=false to switch.
+- ansible.builtin.import_playbook: inventory.yml
+
+- name: Wait for the SONiC switches and start the daemons sonic-vs leaves off
+  hosts: sonic
+  gather_facts: false
+  tasks:
+    - name: Wait until orchagent, FRR and all 32 ports are up
+      ansible.builtin.shell: >
+        supervisorctl status orchagent | grep -q RUNNING && vtysh -c 'show version' >/dev/null &&
+        [ "$(redis-cli -n 4 keys 'PORT|Ethernet*' | wc -l)" -ge 32 ]
+      register: ready
+      until: ready.rc == 0
+      retries: 100
+      delay: 3
+      changed_when: false
+
+    - name: Restart lldpd (sonic-vs starts it without its control socket)
+      ansible.builtin.command: supervisorctl restart lldpd
+
+    - name: Start bfdd (shipped but not started in sonic-vs)
+      ansible.builtin.shell: pgrep -x bfdd || /usr/lib/frr/bfdd -P 0 -d
+
+- name: Configure spines
+  hosts: spines
+  gather_facts: false
+  tasks:
+    - name: Loopback, and one unnumbered port per leaf (Ethernet0 = leaf1, Ethernet4 = leaf2, ...)
+      ansible.builtin.shell: |
+        config loopback add Loopback0 2>/dev/null || true
+        config interface ip add Loopback0 10.0.0.{{ idx }}/32 2>/dev/null || true
+        {% for i in range(leaves) %}
+        config interface ipv6 enable use-link-local-only Ethernet{{ 4 * i }}
+        config interface startup Ethernet{{ 4 * i }}
+        {% endfor %}
+
+    - name: Render and apply FRR config
+      ansible.builtin.template: {src: templates/spine.frr.j2, dest: /tmp/frr-lab.conf}
+    - ansible.builtin.command: vtysh -f /tmp/frr-lab.conf
+
+- name: Configure leaves
+  hosts: leaves
+  gather_facts: false
+  vars:
+    L: "{{ idx | int }}"
+  tasks:
+    - name: Load FRR's BMP module into bgpd on the leaves listed in bmp_leaves
+      ansible.builtin.lineinfile:
+        path: /etc/supervisor/conf.d/supervisord.conf
+        regexp: '^command=/usr/lib/frr/bgpd '
+        line: command=/usr/lib/frr/bgpd -P 0 -M snmp -M bmp
+      register: bgpd_cmd
+      when: inventory_hostname in bmp_leaves
+
+    - name: Restart bgpd so the module loads (must happen before any BGP config is applied)
+      ansible.builtin.shell: supervisorctl reread && supervisorctl update && supervisorctl restart bgpd
+      when: bgpd_cmd is changed
+
+    - name: Loopback, unnumbered spine ports, /31s to the route servers and GPU servers
+      ansible.builtin.shell: |
+        config loopback add Loopback0 2>/dev/null || true
+        config interface ip add Loopback0 10.0.0.{{ 10 + L | int }}/32 2>/dev/null || true
+        {% for n in range(spines) %}
+        config interface ipv6 enable use-link-local-only Ethernet{{ 4 * n }}
+        config interface startup Ethernet{{ 4 * n }}
+        {% endfor %}
+        {% for r in range(1, route_servers + 1) %}
+        config interface ip add Ethernet{{ 4 * (spines + r - 1) }} 10.2.{{ L }}.{{ 2 * r - 2 }}/31 2>/dev/null || true
+        config interface startup Ethernet{{ 4 * (spines + r - 1) }}
+        {% endfor %}
+        {% for s in range(1, servers + 1) %}
+        config interface ip add Ethernet{{ 4 * (spines + route_servers + s - 1) }} 10.{{ 100 + L | int }}.{{ s }}.0/31 2>/dev/null || true
+        config interface startup Ethernet{{ 4 * (spines + route_servers + s - 1) }}
+        {% endfor %}
+
+    - name: Render and apply FRR config
+      ansible.builtin.template: {src: templates/leaf.frr.j2, dest: /tmp/frr-lab.conf}
+    - ansible.builtin.command: vtysh -f /tmp/frr-lab.conf
+
+- name: Configure route servers
+  hosts: route_servers
+  gather_facts: false
+  tasks:
+    - name: Render and apply FRR config
+      ansible.builtin.template: {src: templates/rr.frr.j2, dest: /tmp/frr-lab.conf}
+    - ansible.builtin.command: vtysh -f /tmp/frr-lab.conf
+
+- name: Configure GPU servers (one NIC per rail; eth<L> goes to leaf<L>)
+  hosts: servers
+  gather_facts: false
+  tasks:
+    - name: Addresses, a route to each rail, and a per-NIC table so traffic leaves the NIC it is sourced from
+      ansible.builtin.shell: |
+        {% for l in range(1, leaves + 1) %}
+        {% set gpu = '10.' ~ (100 + l) ~ '.' ~ idx %}
+        ip addr replace {{ gpu }}.1/31 dev eth{{ l }}
+        ip route replace 10.{{ 100 + l }}.0.0/16 via {{ gpu }}.0 dev eth{{ l }}
+        ip route replace default via {{ gpu }}.0 dev eth{{ l }} table {{ 100 + l }}
+        ip rule del from {{ gpu }}.1 table {{ 100 + l }} 2>/dev/null || true
+        ip rule add from {{ gpu }}.1 table {{ 100 + l }}
+        {% endfor %}
+
+- name: Re-send BGP updates so policy changes take effect on a running lab
+  hosts: sonic
+  gather_facts: false
+  tasks:
+    - name: Soft clear
+      ansible.builtin.command: vtysh -c 'clear bgp ipv4 unicast * soft'
