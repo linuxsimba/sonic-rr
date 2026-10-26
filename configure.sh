@@ -1,11 +1,13 @@
 #!/usr/bin/env bash
 # Configure the SONiC spines/leaves for the HPN Pivot lab.
-#   MODE=strict (default) leaves advertise loopback only -> spines have no GPU routes
+#   MODE=pivot  (default) leaves advertise loopback + their OWN GPU /32s to spines
+#                         (Alibaba HPN Pivot: spines hold one path per GPU, cross-rail works)
+#   MODE=strict           leaves advertise loopback only -> spines have no GPU routes
 #                         (same-rail works, cross-rail blackholes at the spine)
-#   MODE=pivot            leaves also advertise their OWN GPU /32s to spines
-#                         (Alibaba HPN Pivot: spines hold one path per GPU)
+# In both modes spines send only loopbacks down to leaves; leaves learn GPU routes
+# exclusively from the route-server cluster (rr1/rr2).
 set -euo pipefail
-MODE=${MODE:-strict}
+MODE=${MODE:-pivot}
 LAB=clab-sonic-rr
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
@@ -39,6 +41,12 @@ spine() {  # node, loopback-octet
     done"
   cat > "$TMP/$n.conf" <<EOF
 hostname $n
+ip prefix-list LOOPBACKS seq 10 permit 10.0.0.0/24 ge 32
+!
+! never send GPU routes down: leaves get those only from the RSC
+route-map TO-LEAF permit 10
+ match ip address prefix-list LOOPBACKS
+!
 router bgp 65100
  bgp router-id $lo
  no bgp ebgp-requires-policy
@@ -49,6 +57,7 @@ router bgp 65100
  neighbor Ethernet4 interface peer-group FABRIC
  address-family ipv4 unicast
   network $lo/32
+  neighbor FABRIC route-map TO-LEAF out
   maximum-paths 16
  exit-address-family
 EOF
@@ -94,7 +103,7 @@ $gpu_static
 ip prefix-list LOOPBACKS seq 10 permit 10.0.0.0/24 ge 32
 ip prefix-list MY-LO seq 10 permit $lo/32
 ip prefix-list GPU seq 10 permit 10.100.0.0/16 ge 32
-ip prefix-list MY-GPU seq 10 permit 10.100.$base.0/24 ge 32
+ip prefix-list MY-GPU seq 10 permit 10.100.$base.0/17 ge 32
 !
 $spine_out
 !
@@ -102,7 +111,7 @@ route-map FROM-SPINE permit 10
  match ip address prefix-list LOOPBACKS
 !
 route-map TO-RSC permit 10
- match ip address prefix-list GPU
+ match ip address prefix-list MY-GPU
  set ip next-hop $lo
 !
 route-map FROM-RSC permit 10
@@ -140,4 +149,8 @@ spine spine1 1
 spine spine2 2
 leaf leaf1 65001 11 11 12 0
 leaf leaf2 65002 12 21 22 128
+# re-send updates so a policy change (e.g. switching MODE) takes effect on a running lab
+for n in spine1 spine2 leaf1 leaf2; do
+  docker exec "$LAB-$n" vtysh -c 'clear bgp ipv4 unicast * soft out' >/dev/null
+done
 echo "done. run ./compare.sh in ~30s"

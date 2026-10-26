@@ -85,13 +85,13 @@
       <text class="h" x="305" y="46">spine1 <tspan class="s">(PSW)</tspan></text>
       <text class="t" x="305" y="68">SONiC-VS · AS 65100</text>
       <text class="t" x="305" y="88">Lo0 10.0.0.1/32</text>
-      <text class="s" x="305" y="108">no route-maps · no RSC session</text>
+      <text class="s" x="305" y="108">TO-LEAF out: loopbacks only</text>
 
       <rect class="box spine" x="710" y="20" width="240" height="100" rx="10"/>
       <text class="h" x="725" y="46">spine2 <tspan class="s">(PSW)</tspan></text>
       <text class="t" x="725" y="68">SONiC-VS · AS 65100</text>
       <text class="t" x="725" y="88">Lo0 10.0.0.2/32</text>
-      <text class="s" x="725" y="108">no route-maps · no RSC session</text>
+      <text class="s" x="725" y="108">TO-LEAF out: loopbacks only</text>
     </g>
 
     <g inkscape:groupmode="layer" inkscape:label="leaves">
@@ -169,35 +169,36 @@
 
     <g inkscape:groupmode="layer" inkscape:label="leaf-policy">
       <rect class="panel" x="345" y="740" width="460" height="290" rx="8"/>
-      <text class="h" x="360" y="766">Leaf policy (all filtering lives on the leaves)</text>
-      <text class="m" x="360" y="794">FABRIC out  TO-SPINE   own loopback only</text>
-      <text class="m" x="360" y="810">                       (+ own GPU /32s if MODE=pivot)</text>
-      <text class="m" x="360" y="832">FABRIC in   FROM-SPINE loopbacks only</text>
-      <text class="m" x="360" y="854">RSC    out  TO-RSC     GPU /32s, next-hop := own Lo0</text>
-      <text class="m" x="360" y="876">RSC    in   FROM-RSC   GPU /32s only</text>
+      <text class="h" x="360" y="766">BGP policy (pivot mode)</text>
+      <text class="m" x="360" y="790">leaf  → spine TO-SPINE   own Lo0 + own GPU /32s</text>
+      <text class="m" x="360" y="808">spine → leaf  TO-LEAF    loopbacks only (spine out)</text>
+      <text class="m" x="360" y="826">              FROM-SPINE loopbacks only (leaf in)</text>
+      <text class="m" x="360" y="844">leaf  → RSC   TO-RSC     own GPU /32s, NH := own Lo0</text>
+      <text class="m" x="360" y="862">RSC   → leaf  FROM-RSC   GPU /32s only</text>
+      <text class="s" x="360" y="882">own GPU /32s = MY-GPU: leaf1 10.100.0.0/17, leaf2 10.100.128.0/17</text>
       <text class="s" x="360" y="906">Result on leaf1 for a remote GPU:</text>
       <text class="m" x="360" y="926">B&gt; 10.100.130.1/32 via 10.0.0.12 (recursive)</text>
       <text class="m" x="360" y="942">     * via fe80::spine1, Ethernet0</text>
       <text class="m" x="360" y="958">     * via fe80::spine2, Ethernet4</text>
-      <text class="s" x="360" y="982">2 BGP paths (rr1, rr2), AS path 65002, 0 paths from spines.</text>
-      <text class="s" x="360" y="1000">The RR only relays routes and is never in the packet path.</text>
+      <text class="s" x="360" y="982">2 BGP paths (rr1, rr2), AS path 65002, 0 from spines. Spines hold</text>
+      <text class="s" x="360" y="998">each GPU once (from its leaf). The RR is never in the packet path.</text>
     </g>
 
     <g inkscape:groupmode="layer" inkscape:label="modes">
       <rect class="panel" x="820" y="740" width="380" height="290" rx="8"/>
       <text class="h" x="835" y="766">Modes (configure.sh MODE=…)</text>
-      <text class="t" x="835" y="794" style="font-weight:bold">strict (default)</text>
-      <text class="s" x="835" y="812">spines: 0 GPU routes (loopbacks only)</text>
-      <text class="s" x="835" y="828">same-rail gpu0↔gpu0: OK (stays on leaf)</text>
-      <text class="s" x="835" y="844" style="fill:#b91c1c">cross-rail: blackholed at spine</text>
-      <text class="s" x="835" y="860">→ why MRC needs SRv6 encap</text>
-      <text class="t" x="835" y="892" style="font-weight:bold">pivot (Alibaba HPN Pivot)</text>
-      <text class="s" x="835" y="910">spines: 8 GPU /32s, 1 path each, from owner leaf</text>
-      <text class="s" x="835" y="926">leaves still learn GPUs only from the RSC</text>
-      <text class="s" x="835" y="942" style="fill:#15803d">cross-rail: OK</text>
-      <text class="m" x="835" y="962">gpu0 → leaf1 → spine2 (10.0.0.2)</text>
-      <text class="m" x="835" y="978">     → leaf2 (10.0.0.12) → gpu1</text>
-      <text class="s" x="835" y="1008">ToR paths per GPU: #spines → #RSC (200 → 4)</text>
+      <text class="t" x="835" y="794" style="font-weight:bold">pivot (default, Alibaba HPN Pivot)</text>
+      <text class="s" x="835" y="812">spines: 8 GPU /32s, 1 path each, from owner leaf</text>
+      <text class="s" x="835" y="828">leaves: GPU routes only from the RSC (2 paths)</text>
+      <text class="s" x="835" y="844" style="fill:#15803d">same-rail and cross-rail: OK</text>
+      <text class="m" x="835" y="862">gpu1 → leaf2 → spine1 (10.0.0.1)</text>
+      <text class="m" x="835" y="878">     → leaf1 (10.0.0.11) → gpu0</text>
+      <text class="t" x="835" y="910" style="font-weight:bold">strict (optional demo)</text>
+      <text class="s" x="835" y="928">leaf → spine: loopback only; spines: 0 GPU routes</text>
+      <text class="s" x="835" y="944">same-rail: OK (stays on one leaf)</text>
+      <text class="s" x="835" y="960" style="fill:#b91c1c">cross-rail: blackholed at spine</text>
+      <text class="s" x="835" y="976">→ why MRC needs SRv6 encap</text>
+      <text class="s" x="835" y="1008">Leaf BGP paths per GPU: #spines → #RSC (200 → 4)</text>
     </g>
   </g>
 </svg>

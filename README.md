@@ -27,7 +27,7 @@ docker build -t gpu-server:latest server/
 
 # 2. lab
 containerlab deploy -t topo.clab.yml
-./configure.sh                 # MODE=strict (default): spines get no GPU prefixes
+./configure.sh                 # MODE=pivot (default)
 ./compare.sh                   # route tables, BGP summaries, server tables, ping/traceroute
 ```
 The RRs and servers are configured at deploy time (`rr/*.conf`, `exec:` in the topology).
@@ -36,11 +36,14 @@ CLI and FRR config.
 
 ## Modes
 ```bash
-MODE=strict ./configure.sh     # spines: loopbacks only; cross-rail traffic blackholes at spine
-MODE=pivot  ./configure.sh     # spines: also each leaf's own GPU /32s; cross-rail works
-# after switching on a running lab:
-for n in leaf1 leaf2; do docker exec clab-sonic-rr-$n vtysh -c 'clear bgp ipv4 unicast * soft out'; done
+./configure.sh                 # MODE=pivot (default): spines hold each GPU /32 once; cross-rail works
+MODE=strict ./configure.sh     # spines get loopbacks only; cross-rail traffic blackholes at the spine
 ```
+configure.sh soft-clears BGP at the end, so switching modes on a running lab takes effect right away.
+
+In both modes the spines send only loopbacks down (`TO-LEAF out`, with `FROM-SPINE in` on the leaves
+as a safety net). Leaves send the RSC only their own GPU /32s (`MY-GPU`). Leaves learn GPU routes
+exclusively from rr1/rr2.
 
 ## Looking around
 ```bash
@@ -68,7 +71,7 @@ and sonic-vs runs everything in one container. The RRs and servers don't run LLD
 GPU server data-plane tests:
 ```bash
 ping 10.100.3.1                                  # same rail, works in both modes
-ping -I 10.100.1.1 10.100.130.1                  # cross rail via spine, pivot mode only
+ping -I 10.100.1.1 10.100.130.1                  # cross rail via spine (fails in strict mode)
 traceroute -n -s 10.100.1.1 10.100.130.1
 ```
 
@@ -79,5 +82,3 @@ containerlab destroy -t topo.clab.yml --cleanup
 
 ## Known quirks
 - On the RRs, vtysh warns about a missing `/etc/frr/vtysh.conf`. It's harmless.
-- TO-RSC sends RR-learned GPU routes back to the RRs (`PfxSnt 8` instead of 4). It's harmless at
-  this size; to fix it, match `MY-GPU` instead of `GPU`.
