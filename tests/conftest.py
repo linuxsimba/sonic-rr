@@ -1,13 +1,11 @@
 import json
 import os
-import subprocess
 import time
 from collections import defaultdict
 
 import pytest
 
 import lab
-from watchers import GnmiRouteWatcher, KernelRouteWatcher
 
 
 def pytest_configure(config):
@@ -58,23 +56,3 @@ def results():
     with open(path, "w") as f:
         json.dump({f"{s}|{m}": dict(v) for (s, m), v in r.rows.items()}, f, indent=2)
     print(f"\nresults written to {path}")
-
-
-@pytest.fixture(scope="session")
-def gnmi():
-    """gNMI STREAM subscription to leaf1's APPL_DB ROUTE_TABLE (starts the sidecar if needed)."""
-    running = subprocess.run(["docker", "ps", "-q", "-f", "name=^gnmi-leaf1$"],
-                             capture_output=True, text=True).stdout.strip()
-    if not running:
-        subprocess.run(["gnmi/setup.sh", "leaf1"], cwd=lab.REPO, check=True)
-        time.sleep(5)
-    ip = subprocess.run(["docker", "inspect", "-f", "{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}",
-                         f"{lab.LAB}-leaf1"], capture_output=True, text=True).stdout.strip()
-    return GnmiRouteWatcher(ip)
-
-
-@pytest.fixture(scope="session")
-def kernel():
-    w = KernelRouteWatcher("leaf1")
-    yield w
-    w.close()
