@@ -2,7 +2,8 @@ name: sonic-rr
 
 # Port map (sonic-vs: ethN -> Ethernet(4*(N-1)))
 #   leaf : eth1/Ethernet0 spine1, eth2/Ethernet4 spine2, eth3/Ethernet8 rr1, eth4/Ethernet12 rr2,
-#          eth5..eth8 / Ethernet16..28 -> srv1..srv4
+#          eth5..eth8 / Ethernet16..28 -> srv1..srv4,
+#          eth15..eth20 / Ethernet56..76 -> spine3..spine8
 #   spine: eth1/Ethernet0 leaf1, eth2/Ethernet4 leaf2
 #   rr   : eth1 leaf1, eth2 leaf2
 #   srv  : eth1 = gpu0 (rail 0, leaf1), eth2 = gpu1 (rail 1, leaf2)
@@ -22,6 +23,12 @@ topology:
   nodes:
     spine1: {kind: sonic-vs}
     spine2: {kind: sonic-vs}
+    spine3: {kind: sonic-vs}
+    spine4: {kind: sonic-vs}
+    spine5: {kind: sonic-vs}
+    spine6: {kind: sonic-vs}
+    spine7: {kind: sonic-vs}
+    spine8: {kind: sonic-vs}
     leaf1:  {kind: sonic-vs}
     leaf2:  {kind: sonic-vs}
 
@@ -70,3 +77,15 @@ topology:
     - endpoints: ["leaf2:eth6", "srv2:eth2"]
     - endpoints: ["leaf2:eth7", "srv3:eth2"]
     - endpoints: ["leaf2:eth8", "srv4:eth2"]
+    - endpoints: ["leaf1:eth15", "spine3:eth1"]
+    - endpoints: ["leaf2:eth15", "spine3:eth2"]
+    - endpoints: ["leaf1:eth16", "spine4:eth1"]
+    - endpoints: ["leaf2:eth16", "spine4:eth2"]
+    - endpoints: ["leaf1:eth17", "spine5:eth1"]
+    - endpoints: ["leaf2:eth17", "spine5:eth2"]
+    - endpoints: ["leaf1:eth18", "spine6:eth1"]
+    - endpoints: ["leaf2:eth18", "spine6:eth2"]
+    - endpoints: ["leaf1:eth19", "spine7:eth1"]
+    - endpoints: ["leaf2:eth19", "spine7:eth2"]
+    - endpoints: ["leaf1:eth20", "spine8:eth1"]
+    - endpoints: ["leaf2:eth20", "spine8:eth2"]
