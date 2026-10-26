@@ -1,0 +1,28 @@
+# Build images, generate topo.clab.yml from the counts and (re)deploy the lab with containerlab.
+- ansible.builtin.import_playbook: inventory.yml
+
+- name: Deploy the lab
+  hosts: localhost
+  gather_facts: false
+  vars:
+    repo: "{{ playbook_dir }}/.."
+  tasks:
+    - name: Check every leaf has enough ports (sonic-vs has 32)
+      ansible.builtin.assert:
+        that: [spines + route_servers + servers <= 32, leaves <= 32]
+
+    - name: Build the GPU server image (ubuntu + iproute2 + python3 for Ansible)
+      ansible.builtin.command: docker build -q -t {{ server_image }} {{ repo }}/server
+      changed_when: false
+
+    - name: Generate topo.clab.yml
+      ansible.builtin.template: {src: templates/topo.clab.yml.j2, dest: "{{ repo }}/topo.clab.yml"}
+
+    - name: Remove the old lab containers (also nodes dropped from the counts) and the gNMI sidecar
+      ansible.builtin.shell: >
+        docker ps -aq --filter label=containerlab={{ lab }} | xargs -r docker rm -f;
+        docker rm -f gnmi-leaf1 2>/dev/null; true
+
+    - name: Deploy with containerlab
+      ansible.builtin.command: containerlab deploy -t topo.clab.yml --reconfigure
+      args: {chdir: "{{ repo }}"}

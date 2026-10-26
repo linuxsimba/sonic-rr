@@ -4,11 +4,16 @@ import logging
 import os
 import re
 import subprocess
+import sys
 import time
+
+import yaml
 
 LAB = "clab-sonic-rr"
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 log = logging.getLogger("lab")                     # shown live when log_cli = true in pytest.ini
+CONFIG = yaml.safe_load(open(os.path.join(REPO, "ansible/group_vars/all.yml")))   # spines, leaves, ...
+PLAYBOOK = os.path.join(os.path.dirname(sys.executable), "ansible-playbook")
 
 
 def sh(node, cmd):
@@ -38,24 +43,29 @@ def wait_until(check, timeout, interval=1, what="condition", status=None):
     raise TimeoutError(f"{what} not met within {timeout}s")
 
 
-def set_mode(mode):
-    """Reconfigure the running lab with configure.sh, then wait until leaf1's BGP sessions are up."""
-    log.info("configuring lab: MODE=%s (configure.sh output follows)", mode)
-    p = subprocess.Popen(["./configure.sh"], cwd=REPO, env={**os.environ, "MODE": mode},
-                         stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
-    for line in p.stdout:                            # stream each line into the live log
-        log.info("  configure.sh | %s", line.rstrip())
+def playbook(name, **extra_vars):
+    """Run an Ansible playbook from ansible/, streaming its task names into the live log."""
+    args = [PLAYBOOK, f"ansible/{name}"] + [a for k, v in extra_vars.items() for a in ("-e", f"{k}={v}")]
+    log.info("ansible-playbook %s %s", name, " ".join(f"{k}={v}" for k, v in extra_vars.items()))
+    p = subprocess.Popen(args, cwd=REPO, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+    for line in p.stdout:
+        if line.startswith(("PLAY [", "TASK [", "fatal", "ERROR")):
+            log.info("  %s", line.rstrip(" *\n"))
     if p.wait():
-        raise RuntimeError(f"configure.sh failed (exit {p.returncode})")
-    peers = 4 if mode == "traditional" else 6       # 4 spines, plus 2 route servers in pivot
+        raise RuntimeError(f"{name} failed (exit {p.returncode})")
+
+
+def set_mode(mode):
+    """Reconfigure the running lab for one design, then wait until leaf1's BGP sessions are up."""
+    playbook("configure.yml", mode=mode)
+    peers = CONFIG["spines"] + (0 if mode == "traditional" else CONFIG["route_servers"])
     wait_until(lambda: established_peers() >= peers, timeout=300, what=f"{peers} BGP sessions on leaf1",
                status=lambda: f"{established_peers()} up")
 
 
-def scale(action, n):
-    """Add or delete n GPU /32 routes behind leaf2 (scale.sh)."""
-    log.info("%s %d GPU /32 static routes on leaf2 (scale.sh)", action, n)
-    subprocess.run(["./scale.sh", action, str(n)], cwd=REPO, check=True, stdout=subprocess.DEVNULL)
+def scale(action, n, leaf="leaf2"):
+    """Add or delete n GPU /32 routes behind a leaf."""
+    playbook("scale.yml", scale_action=action, scale_count=n, scale_leaf=leaf)
 
 
 def established_peers(node="leaf1"):

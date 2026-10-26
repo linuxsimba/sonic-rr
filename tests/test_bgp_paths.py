@@ -8,7 +8,8 @@ import lab
 
 N = 10_000                                          # GPU routes leaf2 announces
 SPINE1 = "Ethernet0"                                # leaf1's BGP neighbor towards spine1 (unnumbered)
-PATHS_PER_ROUTE = {"traditional": 4, "pivot": 2}    # learned from 4 spines vs 2 route servers
+PATHS_PER_ROUTE = {"traditional": lab.CONFIG["spines"],            # one copy from every spine ...
+                   "pivot": lab.CONFIG["route_servers"]}            # ... vs one from every route server
 
 
 # params: tests using `design` run once per value. scope="module": setup runs once per value.
@@ -38,13 +39,13 @@ def test_route_updates_on_spine1_restart(design):
     lab.wait_until(lambda: lab.neighbor(SPINE1)["state"] == "Established", timeout=120,
                    what="spine1 session back up")
 
-    expected = N if design == "traditional" else 2  # traditional: all GPU routes; pivot: 2 loopbacks
+    expected = N if design == "traditional" else 2  # traditional: all GPU routes; pivot: just loopbacks
     lab.wait_until(lambda: lab.neighbor(SPINE1)["prefixes"] >= expected, timeout=120,
                    what=f"{expected:,} routes from spine1", status=lambda: f"{lab.neighbor(SPINE1)['prefixes']:,}")
     resent = lab.neighbor(SPINE1)["prefixes"]
     print(f"\n{design}: spine1 re-sent {resent:,} routes to leaf1")
 
     if design == "pivot":
-        assert resent < 10
+        assert resent <= lab.CONFIG["spines"] + lab.CONFIG["leaves"]   # loopbacks only
     else:
         assert resent >= N

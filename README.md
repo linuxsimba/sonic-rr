@@ -6,53 +6,82 @@ over a SONiC spine underlay. They never learn GPU routes from the spines.
 
 ![topology](topology.svg)
 
-The design, addressing, predicted routing tables and switch route-scale notes are in [PLAN.md](PLAN.md).
+The original design notes are in [PLAN.md](PLAN.md). The diagram shows the first 2×2 version; the
+lab is now generated from counts (default 4 spines, 4 leaves, 2 route servers, 4 GPU servers).
 
-## Nodes
+## Lab shape: [ansible/group_vars/all.yml](ansible/group_vars/all.yml)
+```yaml
+spines: 4
+leaves: 4             # one GPU rail per leaf: every server gets one GPU NIC per leaf
+route_servers: 2
+servers: 4
+mode: pivot           # pivot | strict | traditional
+bfd: true
+```
+Change the counts, then run `deploy.yml` and `configure.yml`. Ansible reaches every node with
+`docker exec` (the `community.docker.docker` connection), so no SSH is needed.
+
 | Node | Image | Role |
 |---|---|---|
-| spine1/2 | docker-sonic-vs | AS 65100, BGP unnumbered to leaves |
-| leaf1/2 | docker-sonic-vs | AS 65001 / 65002, all route policy lives here |
-| rr1/2 | quay.io/frrouting/frr:10.2.1 | AS 65500 route servers (RSC-BGP), leaf peers only |
-| srv1-4 | gpu-server (ubuntu 24.04) | gpu0 → leaf1 (rail 0), gpu1 → leaf2 (rail 1), no BGP |
+| spine1..N | docker-sonic-vs | AS 65100, BGP unnumbered to every leaf |
+| leaf1..N | docker-sonic-vs | AS 65000+L, all route policy lives here |
+| rr1..N | quay.io/frrouting/frr:10.2.1 | AS 65500 route servers (RSC-BGP), leaf peers only |
+| srv1..N | gpu-server (ubuntu 24.04) | one GPU NIC per leaf (ethL → leafL), no BGP |
+
+| Addressing | |
+|---|---|
+| Loopbacks | spine N `10.0.0.N`, leaf L `10.0.0.(10+L)`, rr R `10.0.0.(100+R)` |
+| GPU on rail L, server S | `10.(100+L).S.1/31`, leaf side `.0` (srv4 on leaf2 = 10.102.4.1) |
+| Leaf L ↔ rr R link | `10.2.L.(2R-2)/31`, rr side `.(2R-1)` |
+| Leaf ports | spines first (Ethernet0..), then route servers, then GPU servers |
 
 ## Build and deploy
 ```bash
-# 1. images (one time)
+# one time: python tools (pytest, ansible) and images
+python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
+export PATH=$PWD/.venv/bin:$PATH
 curl -fL -o images/docker-sonic-vs.gz \
   "https://sonic-build.azurewebsites.net/api/sonic/artifacts?branchName=master&platform=vs&target=target/docker-sonic-vs.gz"
 docker load < images/docker-sonic-vs.gz
 docker pull quay.io/frrouting/frr:10.2.1
-docker build -t gpu-server:latest server/
 
-# 2. lab
-containerlab deploy -t topo.clab.yml
-./configure.sh                 # MODE=pivot (default)
-./compare.sh                   # route tables, BGP summaries, server tables, ping/traceroute
+# lab
+ansible-playbook ansible/deploy.yml       # build server image, generate topo.clab.yml, containerlab deploy
+ansible-playbook ansible/configure.yml    # configure every node (about 20 s)
+./compare.sh                              # BGP summaries, GPU route counts, pings
 ```
-The RRs and servers are configured at deploy time (`rr/*.conf`, `exec:` in the topology).
-`configure.sh` configures the SONiC nodes: it waits for each one to boot, then applies the SONiC
-CLI and FRR config.
 
 ## Modes
 ```bash
-./configure.sh                 # MODE=pivot (default): spines hold each GPU /32 once; cross-rail works
-MODE=strict ./configure.sh     # spines get loopbacks only; cross-rail traffic blackholes at the spine
+ansible-playbook ansible/configure.yml -e mode=pivot        # default: leaves learn GPU routes only from rr1/rr2
+ansible-playbook ansible/configure.yml -e mode=traditional  # spines relay every GPU route to every leaf
+ansible-playbook ansible/configure.yml -e mode=strict       # spines get loopbacks only: cross-rail blackholes
+ansible-playbook ansible/configure.yml -e bfd=false         # BFD off
 ```
-configure.sh soft-clears BGP at the end, so switching modes on a running lab takes effect right away.
+The playbook soft-clears BGP at the end, so switching modes on a running lab takes effect right away.
 
-In both modes the spines send only loopbacks down (`TO-LEAF out`, with `FROM-SPINE in` on the leaves
-as a safety net). Leaves send the RSC only their own GPU /32s (`MY-GPU`). Leaves learn GPU routes
-exclusively from rr1/rr2.
+## Route injection
+```bash
+ansible-playbook ansible/scale.yml -e scale_action=add -e scale_count=10000 -e scale_leaf=leaf2
+ansible-playbook ansible/scale.yml -e scale_action=del -e scale_count=10000 -e scale_leaf=leaf2
+```
+Adds blackhole GPU /32s in `10.(100+L).128.0/17` behind one leaf, applied as one burst.
+
+## Tests (pytest)
+```bash
+.venv/bin/pytest            # traditional vs pivot: BGP paths on leaf1, routes re-sent after a spine1 BGP restart
+```
+[tests/test_bgp_paths.py](tests/test_bgp_paths.py) reconfigures the lab through the playbooks and shows
+progress live (`log_cli` in [pytest.ini](pytest.ini)).
 
 ## BFD
 Every BGP session runs BFD with a `FAST` profile (300 ms tx/rx, multiplier 3, so ~900 ms detection):
 - leaf↔spine: single-hop over the unnumbered links (`neighbor FABRIC bfd profile FAST`)
 - leaf↔RSC: multihop, loopback↔loopback (`neighbor RSC bfd profile FAST`; FRR picks multihop
   automatically because the session uses `ebgp-multihop`)
-- RRs: `neighbor LEAF bfd profile FAST`, `bfdd=yes` in [rr/daemons](rr/daemons)
+- RRs: `neighbor LEAF bfd profile FAST`, `bfdd=yes` in [ansible/files/daemons](ansible/files/daemons)
 
-sonic-vs ships `bfdd` but doesn't start it; configure.sh starts it. Check with `show bfd peers brief`
+sonic-vs ships `bfdd` but doesn't start it; configure.yml starts it. Check with `show bfd peers brief`
 in vtysh. Test: `docker pause clab-sonic-rr-rr1` makes leaf1 drop the rr1 session in about 0.8 s
 (versus the 180 s BGP hold timer without BFD). Routes stay via rr2, with no traffic loss.
 
@@ -67,7 +96,7 @@ docker exec -it clab-sonic-rr-srv1 bash            # GPU server
 |---|---|
 | FRR config | `show running-config` (BGP only: `show running-config bgpd`) |
 | BGP peers | `show bgp ipv4 unicast summary` |
-| Paths for one GPU | `show bgp ipv4 unicast 10.100.130.1/32` |
+| Paths for one GPU | `show bgp ipv4 unicast 10.102.4.1/32` |
 | What a leaf sends a spine | `show bgp ipv4 unicast neighbors Ethernet0 advertised-routes` |
 | What a leaf took from an RR | `show bgp ipv4 unicast neighbors 10.0.0.101 routes` |
 | Policy hit counts | `show route-map TO-SPINE` |
@@ -81,15 +110,12 @@ and sonic-vs runs everything in one container. The RRs and servers don't run LLD
 
 GPU server data-plane tests:
 ```bash
-ping 10.100.3.1                                  # same rail, works in both modes
-ping -I 10.100.1.1 10.100.130.1                  # cross rail via spine (fails in strict mode)
-traceroute -n -s 10.100.1.1 10.100.130.1
+ping 10.101.3.1                                  # same rail (rail 1), works in every mode
+ping -I 10.101.1.1 10.102.2.1                    # cross rail via a spine (fails in strict mode)
+traceroute -n -s 10.101.1.1 10.102.2.1
 ```
 
 ## Teardown
 ```bash
 containerlab destroy -t topo.clab.yml --cleanup
 ```
-
-## Known quirks
-- On the RRs, vtysh warns about a missing `/etc/frr/vtysh.conf`. It's harmless.

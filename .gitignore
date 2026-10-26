@@ -4,5 +4,6 @@ images/
 __pycache__/
 .pytest_cache/
 results/
+topo.clab.yml
 .topo.clab.yml.bak
 .venv/

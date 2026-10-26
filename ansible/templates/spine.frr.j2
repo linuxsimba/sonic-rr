@@ -1,0 +1,31 @@
+hostname {{ inventory_hostname }}
+{% include 'bfd.j2' %}
+
+!
+ip prefix-list LOOPBACKS seq 10 permit 10.0.0.0/24 ge 32
+!
+! what a spine sends down to leaves: loopbacks only (pivot/strict) or everything (traditional)
+route-map TO-LEAF permit 10
+ match ip address prefix-list LOOPBACKS
+!
+{% if mode == 'traditional' %}
+route-map TO-LEAF permit 20
+{% else %}
+no route-map TO-LEAF permit 20
+{% endif %}
+!
+router bgp 65100
+ bgp router-id 10.0.0.{{ idx }}
+ no bgp ebgp-requires-policy
+ bgp bestpath as-path multipath-relax
+ neighbor FABRIC peer-group
+ neighbor FABRIC remote-as external
+{% for i in range(leaves) %}
+ neighbor Ethernet{{ 4 * i }} interface peer-group FABRIC
+{% endfor %}
+ {{ 'neighbor FABRIC bfd profile FAST' if bfd | bool else 'no neighbor FABRIC bfd' }}
+ address-family ipv4 unicast
+  network 10.0.0.{{ idx }}/32
+  neighbor FABRIC route-map TO-LEAF out
+  maximum-paths 64
+ exit-address-family

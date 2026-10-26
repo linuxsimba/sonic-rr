@@ -1,0 +1,3 @@
+{% for i in range(scale_count | int) %}
+{{ 'no ' if scale_action == 'del' else '' }}ip route 10.{{ 100 + idx | int }}.{{ 128 + i // 256 }}.{{ i % 256 }}/32 blackhole
+{% endfor %}

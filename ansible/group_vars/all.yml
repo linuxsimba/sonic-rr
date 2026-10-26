@@ -1,0 +1,20 @@
+# ---- lab shape: change these, then run deploy.yml and configure.yml ----
+lab: sonic-rr
+spines: 4
+leaves: 4             # one GPU rail per leaf: every server gets one GPU NIC per leaf
+route_servers: 2
+servers: 4            # per leaf: spines + route_servers + servers must be <= 32 (sonic-vs port count)
+
+# ---- design ----
+mode: pivot           # pivot | strict | traditional
+bfd: true
+
+# ---- images ----
+sonic_image: docker-sonic-vs:latest
+frr_image: quay.io/frrouting/frr:10.2.1
+server_image: gpu-server:latest
+
+# ---- how Ansible reaches lab nodes: docker exec into the container, no SSH ----
+ansible_connection: community.docker.docker
+ansible_host: "clab-{{ lab }}-{{ inventory_hostname }}"
+ansible_python_interpreter: /usr/bin/python3
