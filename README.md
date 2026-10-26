@@ -6,7 +6,7 @@ over a SONiC spine underlay. They never learn GPU routes from the spines.
 
 ![topology](topology.svg)
 
-The original design notes are in [PLAN.md](PLAN.md). The diagram shows the first 2×2 version; the
+The diagram shows the first 2×2 version; the
 lab is now generated from counts (default 4 spines, 4 leaves, 2 route servers, 4 GPU servers).
 
 ## Lab shape: [ansible/group_vars/all.yml](ansible/group_vars/all.yml)

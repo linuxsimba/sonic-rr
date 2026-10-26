@@ -1,6 +1,7 @@
 clab-*/
 gnmi/run-*/
 images/
+PLAN.md
 __pycache__/
 .pytest_cache/
 results/
