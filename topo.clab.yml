@@ -8,6 +8,10 @@ name: sonic-rr
 #   srv  : eth1 = gpu0 (rail 0, leaf1), eth2 = gpu1 (rail 1, leaf2)
 
 topology:
+  defaults:
+    binds:
+      - shell/bashrc:/root/.bashrc:ro
+
   kinds:
     sonic-vs:
       image: docker-sonic-vs:latest
