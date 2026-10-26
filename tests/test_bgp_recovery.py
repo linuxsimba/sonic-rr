@@ -72,12 +72,15 @@ def test_spine1_silent_failure(gnmi, paused, results):
 
 def test_rr1_silent_failure(gnmi, paused, bgp_paths, results):
     """FIB never changes (rr2 gives the same next hop), so gNMI sees nothing: watch BGP paths."""
+    before = lab.route_ifnames()
     probe = PingProbe().start()
     time.sleep(1)
     t0 = paused("rr1")
     t_detect = bgp_paths.wait_for(lambda paths, _: paths == ("10.0.0.102",), t0, DETECT_TIMEOUT)
     loss = probe.stop()
-    fib_updates = [e for _, e in gnmi.since(t0) if e[0] == WATCH_PREFIX]
+    # zebra may re-send the route when its best path changes; only a different next-hop set counts
+    fib_updates = [f for _, (p, f) in gnmi.since(t0) if p == WATCH_PREFIX]
+    fib_changes = [f for f in fib_updates if set(f.get("ifname", "").split(",")) != before]
 
     t1 = time.time()
     lab.unpause("rr1")
@@ -85,9 +88,10 @@ def test_rr1_silent_failure(gnmi, paused, bgp_paths, results):
 
     results.add("silent failure, no BFD: rr1", "pivot",
                 detect_s=round(t_detect - t0, 1), recover_s=round(t_back - t1, 1),
-                lost_pkts=loss["lost_pkts"], fib_updates_for_route=len(fib_updates))
+                lost_pkts=loss["lost_pkts"], fib_updates_for_route=len(fib_updates),
+                fib_nexthop_changes=len(fib_changes))
     assert loss["lost_pkts"] == 0, "losing one route server must not drop traffic"
-    assert not fib_updates, "rr1 failure should not touch the FIB"
+    assert not fib_changes, "rr1 failure must not change the route's next hops"
 
 
 def test_both_rr_silent_failure(gnmi, paused, results):

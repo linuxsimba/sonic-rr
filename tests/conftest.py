@@ -34,7 +34,9 @@ class Results:
         return ", ".join(str(v) for v in vals)
 
     def report(self):
-        modes = sorted({m for r in self.rows.values() for m in r})
+        order = ["traditional", "pivot"]
+        seen = {m for r in self.rows.values() for m in r}
+        modes = [m for m in order if m in seen] + sorted(seen - set(order))
         w = 36
         lines = [f"{'metric':<{w + 14}}" + "".join(f"{m:>26}" for m in modes)]
         section = None
