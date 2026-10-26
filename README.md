@@ -1,6 +1,6 @@
 # sonic-rr: HPN Pivot lab
 
-A containerlab reproduction of the "HPN Pivot" routing design Alibaba Cloud presented at the
+A containerlab reproduction of the BGP Optimization in an AI cluster design Alibaba Cloud presented at the
 OCP Global Summit 2026. Leaves learn GPU service routes from a route-server cluster (FRR) over
 multihop eBGP, with a loopback next hop resolved recursively over a SONiC spine underlay, instead
 of learning every GPU route from every spine. A pytest suite compares it with a traditional
@@ -96,7 +96,7 @@ sonic-vs ships `bfdd` but doesn't start it; configure.yml starts it. Check with 
 in vtysh. Test: `docker pause clab-sonic-rr-rr1` makes leaf1 drop the rr1 session in about 0.8 s
 (versus the 180 s BGP hold timer without BFD). Routes stay via rr2, with no traffic loss.
 
-## Looking around
+## Review and troubleshooting
 ```bash
 docker exec -it clab-sonic-rr-leaf1 vtysh          # FRR shell on a switch
 docker exec -it clab-sonic-rr-leaf1 bash           # SONiC shell (show ip route, show interfaces status)
