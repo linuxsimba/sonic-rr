@@ -45,6 +45,17 @@ In both modes the spines send only loopbacks down (`TO-LEAF out`, with `FROM-SPI
 as a safety net). Leaves send the RSC only their own GPU /32s (`MY-GPU`). Leaves learn GPU routes
 exclusively from rr1/rr2.
 
+## BFD
+Every BGP session runs BFD with a `FAST` profile (300 ms tx/rx, multiplier 3, so ~900 ms detection):
+- leaf↔spine: single-hop over the unnumbered links (`neighbor FABRIC bfd profile FAST`)
+- leaf↔RSC: multihop, loopback↔loopback (`neighbor RSC bfd profile FAST`; FRR picks multihop
+  automatically because the session uses `ebgp-multihop`)
+- RRs: `neighbor LEAF bfd profile FAST`, `bfdd=yes` in [rr/daemons](rr/daemons)
+
+sonic-vs ships `bfdd` but doesn't start it; configure.sh starts it. Check with `show bfd peers brief`
+in vtysh. Test: `docker pause clab-sonic-rr-rr1` makes leaf1 drop the rr1 session in about 0.8 s
+(versus the 180 s BGP hold timer without BFD). Routes stay via rr2, with no traffic loss.
+
 ## Looking around
 ```bash
 docker exec -it clab-sonic-rr-leaf1 vtysh          # FRR shell on a switch

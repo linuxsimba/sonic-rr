@@ -21,6 +21,8 @@ wait_sonic() {
   echo " up"
   # sonic-vs starts lldpd without its control socket; restart so lldpcli works
   docker exec "$LAB-$n" supervisorctl restart lldpd >/dev/null
+  # sonic-vs ships bfdd but doesn't run it
+  docker exec "$LAB-$n" bash -c 'pgrep -x bfdd >/dev/null || /usr/lib/frr/bfdd -P 0 -d 2>/dev/null'
 }
 
 apply_frr() {  # node, file
@@ -41,6 +43,14 @@ spine() {  # node, loopback-octet
     done"
   cat > "$TMP/$n.conf" <<EOF
 hostname $n
+bfd
+ profile FAST
+  receive-interval 300
+  transmit-interval 300
+  detect-multiplier 3
+ exit
+exit
+!
 ip prefix-list LOOPBACKS seq 10 permit 10.0.0.0/24 ge 32
 !
 ! never send GPU routes down: leaves get those only from the RSC
@@ -55,6 +65,7 @@ router bgp 65100
  neighbor FABRIC remote-as external
  neighbor Ethernet0 interface peer-group FABRIC
  neighbor Ethernet4 interface peer-group FABRIC
+ neighbor FABRIC bfd profile FAST
  address-family ipv4 unicast
   network $lo/32
   neighbor FABRIC route-map TO-LEAF out
@@ -97,6 +108,14 @@ no route-map TO-SPINE permit 20"
 
   cat > "$TMP/$n.conf" <<EOF
 hostname $n
+bfd
+ profile FAST
+  receive-interval 300
+  transmit-interval 300
+  detect-multiplier 3
+ exit
+exit
+!
 ip route 10.0.0.101/32 10.2.$l1.1
 ip route 10.0.0.102/32 10.2.$l2.1
 $gpu_static
@@ -132,6 +151,8 @@ router bgp $asn
  no neighbor RSC enforce-first-as
  neighbor 10.0.0.101 peer-group RSC
  neighbor 10.0.0.102 peer-group RSC
+ neighbor FABRIC bfd profile FAST
+ neighbor RSC bfd profile FAST
  address-family ipv4 unicast
   network $lo/32
 $gpu_net  neighbor FABRIC route-map FROM-SPINE in
