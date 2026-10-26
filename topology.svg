@@ -25,7 +25,7 @@
   </defs>
 
   <rect x="0" y="0" width="1440" height="1150" fill="#ffffff"/>
-  <text x="30" y="34" style="font-size:22px;font-weight:bold;fill:#0f172a">HPN Pivot lab: SONiC leaf/spine + FRR route-server cluster</text>
+  <text x="30" y="34" style="font-size:22px;font-weight:bold;fill:#0f172a">SONiC leaf/spine + FRR route-server cluster lab</text>
   <text x="30" y="56" class="s">Default generated lab: 4 spines, 4 leaves, 2 route servers, 4 GPU servers (one GPU NIC per leaf). Counts are set in ansible/group_vars/all.yml.</text>
 
   <!-- leaf <-> spine full mesh (spine centers 170/450/730/1010, leaf centers the same) -->
