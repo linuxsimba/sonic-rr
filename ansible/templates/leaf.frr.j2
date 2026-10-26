@@ -73,6 +73,14 @@ router bgp {{ 65000 + L }}
 {% for g in ['FABRIC', 'RSC'] %}
  {{ 'neighbor ' ~ g ~ ' bfd profile FAST' if bfd | bool else 'no neighbor ' ~ g ~ ' bfd' }}
 {% endfor %}
+{% if inventory_hostname in bmp_leaves %}
+ ! stream every peer's routes (before and after our inbound policy) to the BMP collector
+ bmp targets collector
+  bmp monitor ipv4 unicast pre-policy
+  bmp monitor ipv4 unicast post-policy
+  bmp connect {{ bmp_collector }} port {{ bmp_port }} min-retry 1000 max-retry 5000
+ exit
+{% endif %}
  address-family ipv4 unicast
   network {{ lo }}/32
   redistribute static route-map GPU-HOSTS

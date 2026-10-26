@@ -9,6 +9,11 @@ servers: 4            # per leaf: spines + route_servers + servers must be <= 32
 mode: pivot           # pivot | strict | traditional
 bfd: true
 
+# ---- BMP: these leaves stream their BGP data to a collector (pytest listens on the host) ----
+bmp_leaves: [leaf1]
+bmp_collector: 172.20.20.1      # the host, as seen from the containerlab management network
+bmp_port: 5000
+
 # ---- images ----
 sonic_image: docker-sonic-vs:latest
 frr_image: quay.io/frrouting/frr:10.2.1

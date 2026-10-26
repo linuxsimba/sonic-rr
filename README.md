@@ -72,7 +72,10 @@ Adds blackhole GPU /32s in `10.(100+L).128.0/17` behind one leaf, applied as one
 .venv/bin/pytest            # traditional vs pivot: BGP paths on leaf1, routes re-sent after a spine1 BGP restart
 ```
 [tests/test_bgp_paths.py](tests/test_bgp_paths.py) reconfigures the lab through the playbooks and shows
-progress live (`log_cli` in [pytest.ini](pytest.ini)).
+progress live (`log_cli` in [pytest.ini](pytest.ini)). It reads no BGP state with vtysh: leaf1 streams
+every route its peers send it over **BMP** (BGP Monitoring Protocol, FRR's `bgpd_bmp` module) to a
+small collector inside the test ([tests/bmp.py](tests/bmp.py)). Which leaves stream, and where to, is
+set by `bmp_leaves` / `bmp_collector` / `bmp_port` in group_vars.
 
 ## BFD
 Every BGP session runs BFD with a `FAST` profile (300 ms tx/rx, multiplier 3, so ~900 ms detection):

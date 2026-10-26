@@ -44,6 +44,18 @@
   vars:
     L: "{{ idx | int }}"
   tasks:
+    - name: Load FRR's BMP module into bgpd on the leaves listed in bmp_leaves
+      ansible.builtin.lineinfile:
+        path: /etc/supervisor/conf.d/supervisord.conf
+        regexp: '^command=/usr/lib/frr/bgpd '
+        line: command=/usr/lib/frr/bgpd -P 0 -M snmp -M bmp
+      register: bgpd_cmd
+      when: inventory_hostname in bmp_leaves
+
+    - name: Restart bgpd so the module loads (must happen before any BGP config is applied)
+      ansible.builtin.shell: supervisorctl reread && supervisorctl update && supervisorctl restart bgpd
+      when: bgpd_cmd is changed
+
     - name: Loopback, unnumbered spine ports, /31s to the route servers and GPU servers
       ansible.builtin.shell: |
         config loopback add Loopback0 2>/dev/null || true
