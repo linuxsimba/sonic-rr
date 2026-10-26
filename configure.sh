@@ -39,11 +39,12 @@ bfd_lines() {  # peer-group...
 
 wait_sonic() {
   local n=$1
-  echo -n "waiting for $n "
+  echo -n "$n: waiting for SONiC to boot (orchagent, FRR, 32 ports) "
   until docker exec "$LAB-$n" bash -c 'supervisorctl status orchagent | grep -q RUNNING && vtysh -c "show version" >/dev/null 2>&1 && [ "$(redis-cli -n 4 keys "PORT|Ethernet*" | wc -l)" -ge 32 ]' 2>/dev/null; do
     echo -n .; sleep 3
   done
-  echo " up"
+  echo " ready"
+  echo "$n: restarting lldpd, starting bfdd"
   # sonic-vs starts lldpd without its control socket; restart so lldpcli works
   docker exec "$LAB-$n" supervisorctl restart lldpd >/dev/null
   # sonic-vs ships bfdd but doesn't run it
@@ -98,6 +99,8 @@ $(bfd_lines FABRIC)
   maximum-paths 16
  exit-address-family
 EOF
+  local desc="loopbacks only"; [[ $MODE == traditional ]] && desc="every route (incl. GPU /32s)"
+  echo "$n: BGP AS65100 lo $lo, unnumbered to leaf1/leaf2, sends leaves: $desc, BFD=$BFD"
   apply_frr "$n" "$TMP/$n.conf"
 }
 
@@ -194,6 +197,10 @@ $(bfd_lines FABRIC RSC)
   maximum-paths 16
  exit-address-family
 EOF
+  local up="own loopback + own GPU /32s" down="loopbacks only" rs="up (GPU routes via rr1/rr2)"
+  [[ $MODE == strict ]] && up="own loopback only"
+  [[ $MODE == traditional ]] && down="loopbacks + all GPU /32s" && rs="shut down"
+  echo "$n: BGP AS$asn lo $lo, to spines: $up, from spines: $down, route servers: $rs, BFD=$BFD"
   apply_frr "$n" "$TMP/$n.conf"
 }
 
@@ -212,10 +219,12 @@ echo "MODE=$MODE BFD=$BFD SPINES=$SPINES"
 for i in $(seq 1 "$SPINES"); do spine "spine$i" "$i"; done
 leaf leaf1 65001 11 11 12 0
 leaf leaf2 65002 12 21 22 128
+echo "rr1, rr2: BFD $BFD"
 rr_bfd rr1
 rr_bfd rr2
+echo "soft-clearing BGP on all switches so the new policy is re-advertised"
 # re-send updates so a policy change (e.g. switching MODE) takes effect on a running lab
 for n in $(seq -f 'spine%g' 1 "$SPINES") leaf1 leaf2; do
   docker exec "$LAB-$n" vtysh -c 'clear bgp ipv4 unicast * soft' >/dev/null
 done
-echo "done. run ./compare.sh in ~30s"
+echo "done (MODE=$MODE). run ./compare.sh in ~30s"

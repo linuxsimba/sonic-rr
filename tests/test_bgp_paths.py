@@ -17,7 +17,9 @@ PATHS_PER_ROUTE = {"traditional": 8, "pivot": 2}    # learned from 8 spines vs 2
 def design(request):
     lab.set_mode(request.param)
     lab.scale("add", N)
-    lab.wait_until(lambda: lab.bgp_paths() >= N * PATHS_PER_ROUTE[request.param], timeout=300)
+    lab.wait_until(lambda: lab.bgp_paths() >= N * PATHS_PER_ROUTE[request.param], timeout=300,
+                   what=f"{N * PATHS_PER_ROUTE[request.param]:,} BGP paths on leaf1",
+                   status=lambda: f"{lab.bgp_paths():,}")
     yield request.param
     lab.scale("del", N)
 
@@ -29,12 +31,16 @@ def test_route_count(design):
 
 
 def test_route_updates_on_spine1_restart(design):
+    lab.log.info("restarting BGP on spine1")
     lab.sh("spine1", "vtysh -c 'clear bgp *'")     # spine1 drops and re-opens all its BGP sessions
-    lab.wait_until(lambda: lab.neighbor(SPINE1)["state"] != "Established", timeout=30, interval=0.2)
-    lab.wait_until(lambda: lab.neighbor(SPINE1)["state"] == "Established", timeout=120)
+    lab.wait_until(lambda: lab.neighbor(SPINE1)["state"] != "Established", timeout=30, interval=0.2,
+                   what="spine1 session down")
+    lab.wait_until(lambda: lab.neighbor(SPINE1)["state"] == "Established", timeout=120,
+                   what="spine1 session back up")
 
     expected = N if design == "traditional" else 2  # traditional: all GPU routes; pivot: 2 loopbacks
-    lab.wait_until(lambda: lab.neighbor(SPINE1)["prefixes"] >= expected, timeout=120)
+    lab.wait_until(lambda: lab.neighbor(SPINE1)["prefixes"] >= expected, timeout=120,
+                   what=f"{expected:,} routes from spine1", status=lambda: f"{lab.neighbor(SPINE1)['prefixes']:,}")
     resent = lab.neighbor(SPINE1)["prefixes"]
     print(f"\n{design}: spine1 re-sent {resent:,} routes to leaf1")
 
