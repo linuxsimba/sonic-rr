@@ -116,6 +116,14 @@ def bgp_update_counters(node):
             for n, v in nbrs.items() if isinstance(v, dict) and "messageStats" in v}
 
 
+def bgp_neighbor(nbr, node="leaf1"):
+    """State, UPDATEs received and prefixes accepted for one BGP neighbor."""
+    d = vtysh_json(node, f"show bgp neighbors {nbr}")[nbr]
+    return {"state": d["bgpState"],
+            "updates_rcvd": d["messageStats"]["updatesRecv"],
+            "prefixes": d.get("addressFamilyInfo", {}).get("ipv4Unicast", {}).get("acceptedPrefixCounter", 0)}
+
+
 def bgp_memory(node="leaf1"):
     """(paths, bytes) from 'show bgp memory' -> the 'N BGP routes, using X' line."""
     out = sh(node, "vtysh -c 'show bgp memory' 2>/dev/null")
