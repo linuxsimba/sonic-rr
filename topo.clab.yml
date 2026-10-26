@@ -3,7 +3,10 @@ name: sonic-rr
 # Port map (sonic-vs: ethN -> Ethernet(4*(N-1)))
 #   leaf : eth1/Ethernet0 spine1, eth2/Ethernet4 spine2, eth3/Ethernet8 rr1, eth4/Ethernet12 rr2,
 #          eth5..eth8 / Ethernet16..28 -> srv1..srv4,
-#          eth15..eth20 / Ethernet56..76 -> spine3..spine8
+#          eth15/eth16 / Ethernet56/60 -> spine3/spine4
+#   spine: eth1..eth4 / Ethernet0..12 -> leaf1..leaf4
+#   rr   : eth1..eth4 -> leaf1..leaf4
+#   leaf3/leaf4 have no GPU servers
 #   spine: eth1/Ethernet0 leaf1, eth2/Ethernet4 leaf2
 #   rr   : eth1 leaf1, eth2 leaf2
 #   srv  : eth1 = gpu0 (rail 0, leaf1), eth2 = gpu1 (rail 1, leaf2)
@@ -25,12 +28,10 @@ topology:
     spine2: {kind: sonic-vs}
     spine3: {kind: sonic-vs}
     spine4: {kind: sonic-vs}
-    spine5: {kind: sonic-vs}
-    spine6: {kind: sonic-vs}
-    spine7: {kind: sonic-vs}
-    spine8: {kind: sonic-vs}
     leaf1:  {kind: sonic-vs}
     leaf2:  {kind: sonic-vs}
+    leaf3:  {kind: sonic-vs}
+    leaf4:  {kind: sonic-vs}
 
     rr1:
       kind: linux
@@ -81,11 +82,15 @@ topology:
     - endpoints: ["leaf2:eth15", "spine3:eth2"]
     - endpoints: ["leaf1:eth16", "spine4:eth1"]
     - endpoints: ["leaf2:eth16", "spine4:eth2"]
-    - endpoints: ["leaf1:eth17", "spine5:eth1"]
-    - endpoints: ["leaf2:eth17", "spine5:eth2"]
-    - endpoints: ["leaf1:eth18", "spine6:eth1"]
-    - endpoints: ["leaf2:eth18", "spine6:eth2"]
-    - endpoints: ["leaf1:eth19", "spine7:eth1"]
-    - endpoints: ["leaf2:eth19", "spine7:eth2"]
-    - endpoints: ["leaf1:eth20", "spine8:eth1"]
-    - endpoints: ["leaf2:eth20", "spine8:eth2"]
+    - endpoints: ["leaf3:eth1", "spine1:eth3"]
+    - endpoints: ["leaf3:eth2", "spine2:eth3"]
+    - endpoints: ["leaf3:eth15", "spine3:eth3"]
+    - endpoints: ["leaf3:eth16", "spine4:eth3"]
+    - endpoints: ["leaf3:eth3", "rr1:eth3"]
+    - endpoints: ["leaf3:eth4", "rr2:eth3"]
+    - endpoints: ["leaf4:eth1", "spine1:eth4"]
+    - endpoints: ["leaf4:eth2", "spine2:eth4"]
+    - endpoints: ["leaf4:eth15", "spine3:eth4"]
+    - endpoints: ["leaf4:eth16", "spine4:eth4"]
+    - endpoints: ["leaf4:eth3", "rr1:eth4"]
+    - endpoints: ["leaf4:eth4", "rr2:eth4"]

@@ -47,7 +47,7 @@ def set_mode(mode):
         log.info("  configure.sh | %s", line.rstrip())
     if p.wait():
         raise RuntimeError(f"configure.sh failed (exit {p.returncode})")
-    peers = 8 if mode == "traditional" else 10      # 8 spines, plus 2 route servers in pivot
+    peers = 4 if mode == "traditional" else 6       # 4 spines, plus 2 route servers in pivot
     wait_until(lambda: established_peers() >= peers, timeout=300, what=f"{peers} BGP sessions on leaf1",
                status=lambda: f"{established_peers()} up")
 

@@ -8,17 +8,18 @@
 #   MODE=traditional      classic leaf/spine: spines relay every GPU route to every leaf,
 #                         RSC sessions shut -> each leaf learns each GPU from every spine
 #   BFD=on (default) | off   BFD (FAST profile) on every BGP session
-#   SPINES=8                 number of spines (spine1..spineN)
+#   SPINES=4, LEAVES=4       fabric size (GPU servers hang off leaf1/leaf2; leaf3/leaf4 have none)
 # Safe to re-run on a running lab to switch MODE/BFD.
 set -euo pipefail
 MODE=${MODE:-pivot}
 BFD=${BFD:-on}
-SPINES=${SPINES:-8}
+SPINES=${SPINES:-4}
+LEAVES=${LEAVES:-4}
 LAB=clab-sonic-rr
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
 
-# leaf port facing spineN: spine1/2 on Ethernet0/4, spine3..8 on Ethernet56..76
+# leaf port facing spineN: spine1/2 on Ethernet0/4, spine3/4 on Ethernet56/60
 spine_port() { (( $1 <= 2 )) && echo "Ethernet$(( 4*($1-1) ))" || echo "Ethernet$(( 56 + 4*($1-3) ))"; }
 LEAF_SPINE_PORTS=$(for i in $(seq 1 "$SPINES"); do spine_port "$i"; done)
 
@@ -59,12 +60,14 @@ apply_frr() {  # node, file
 
 # ---------- spines ----------
 spine() {  # node, loopback-octet
-  local n=$1 lo=10.0.0.$2
+  local n=$1 lo=10.0.0.$2 ports leaf_nbrs="" p
+  ports=$(for i in $(seq 1 "$LEAVES"); do echo "Ethernet$(( 4*(i-1) ))"; done)   # port i -> leaf i
+  for p in $ports; do leaf_nbrs+=" neighbor $p interface peer-group FABRIC"$'\n'; done
   wait_sonic "$n"
   docker exec "$LAB-$n" bash -c "
     config loopback add Loopback0 2>/dev/null || true
     config interface ip add Loopback0 $lo/32 2>/dev/null || true
-    for p in Ethernet0 Ethernet4; do
+    for p in $(echo $ports); do
       config interface ipv6 enable use-link-local-only \$p
       config interface startup \$p
     done"
@@ -90,9 +93,7 @@ router bgp 65100
  bgp bestpath as-path multipath-relax
  neighbor FABRIC peer-group
  neighbor FABRIC remote-as external
- neighbor Ethernet0 interface peer-group FABRIC
- neighbor Ethernet4 interface peer-group FABRIC
-$(bfd_lines FABRIC)
+$leaf_nbrs$(bfd_lines FABRIC)
  address-family ipv4 unicast
   network $lo/32
   neighbor FABRIC route-map TO-LEAF out
@@ -100,16 +101,17 @@ $(bfd_lines FABRIC)
  exit-address-family
 EOF
   local desc="loopbacks only"; [[ $MODE == traditional ]] && desc="every route (incl. GPU /32s)"
-  echo "$n: BGP AS65100 lo $lo, unnumbered to leaf1/leaf2, sends leaves: $desc, BFD=$BFD"
+  echo "$n: BGP AS65100 lo $lo, unnumbered to leaf1-leaf$LEAVES, sends leaves: $desc, BFD=$BFD"
   apply_frr "$n" "$TMP/$n.conf"
 }
 
 # ---------- leaves ----------
-leaf() {  # node, asn, loopback-octet, rr1-link-octet, rr2-link-octet, gpu-third-octet-base
+leaf() {  # node, asn, loopback-octet, rr1-link-octet, rr2-link-octet, gpu-third-octet-base|none
   local n=$1 asn=$2 lo=10.0.0.$3 l1=$4 l2=$5 base=$6
   wait_sonic "$n"
-  local gpu_ifs="" gpu_static="" fabric_nbrs="" p
-  for s in 1 2 3 4; do
+  local gpu_ifs="" gpu_static="" fabric_nbrs="" p my_gpu="ip prefix-list MY-GPU seq 10 deny any"
+  [[ $base != none ]] && my_gpu="ip prefix-list MY-GPU seq 10 permit 10.100.$base.0/17 ge 32"
+  for s in $([[ $base != none ]] && echo 1 2 3 4); do
     local port=Ethernet$((16 + 4*(s-1))) o=$((base + s))
     gpu_ifs+="config interface ip add $port 10.100.$o.0/31 2>/dev/null; config interface startup $port; "
     gpu_static+="ip route 10.100.$o.1/32 $port"$'\n'
@@ -151,7 +153,7 @@ $gpu_static
 ip prefix-list LOOPBACKS seq 10 permit 10.0.0.0/24 ge 32
 ip prefix-list MY-LO seq 10 permit $lo/32
 ip prefix-list GPU seq 10 permit 10.100.0.0/16 ge 32
-ip prefix-list MY-GPU seq 10 permit 10.100.$base.0/17 ge 32
+$my_gpu
 !
 ! GPU host routes are statics (real GPUs + scale.sh injected); advertise only our own
 route-map GPU-HOSTS permit 10
@@ -215,16 +217,18 @@ rr_bfd() {
   fi
 }
 
-echo "MODE=$MODE BFD=$BFD SPINES=$SPINES"
+echo "MODE=$MODE BFD=$BFD SPINES=$SPINES LEAVES=$LEAVES"
 for i in $(seq 1 "$SPINES"); do spine "spine$i" "$i"; done
 leaf leaf1 65001 11 11 12 0
 leaf leaf2 65002 12 21 22 128
+leaf leaf3 65003 13 31 32 none
+leaf leaf4 65004 14 41 42 none
 echo "rr1, rr2: BFD $BFD"
 rr_bfd rr1
 rr_bfd rr2
 echo "soft-clearing BGP on all switches so the new policy is re-advertised"
 # re-send updates so a policy change (e.g. switching MODE) takes effect on a running lab
-for n in $(seq -f 'spine%g' 1 "$SPINES") leaf1 leaf2; do
+for n in $(seq -f 'spine%g' 1 "$SPINES") $(seq -f 'leaf%g' 1 "$LEAVES"); do
   docker exec "$LAB-$n" vtysh -c 'clear bgp ipv4 unicast * soft' >/dev/null
 done
 echo "done (MODE=$MODE). run ./compare.sh in ~30s"

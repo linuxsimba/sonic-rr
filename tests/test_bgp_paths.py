@@ -8,7 +8,7 @@ import lab
 
 N = 10_000                                          # GPU routes leaf2 announces
 SPINE1 = "Ethernet0"                                # leaf1's BGP neighbor towards spine1 (unnumbered)
-PATHS_PER_ROUTE = {"traditional": 8, "pivot": 2}    # learned from 8 spines vs 2 route servers
+PATHS_PER_ROUTE = {"traditional": 4, "pivot": 2}    # learned from 4 spines vs 2 route servers
 
 
 # params: tests using `design` run once per value. scope="module": setup runs once per value.
@@ -26,7 +26,7 @@ def design(request):
 
 def test_route_count(design):
     paths = lab.bgp_paths()
-    print(f"\n{design}: leaf1 holds {paths:,} BGP paths for {N:,} GPU routes")
+    print(f"\n{design}: leaf1 holds {paths:,} BGP paths for {N:,} GPU routes (same routes, more copies)")
     assert paths >= N * PATHS_PER_ROUTE[design]
 
 
