@@ -1,3 +1,7 @@
-images/
 clab-*/
+gnmi/run-*/
+images/
+__pycache__/
+results/
 .topo.clab.yml.bak
+.venv/
