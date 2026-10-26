@@ -6,7 +6,6 @@ over a SONiC spine underlay. They never learn GPU routes from the spines.
 
 ![topology](topology.svg)
 
-The design, addressing, predicted routing tables and switch route-scale notes are in [PLAN.md](PLAN.md).
 
 ## Nodes
 | Node | Image | Role |
