@@ -1,0 +1,203 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg"
+     xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+     width="1260" height="1130" viewBox="0 0 1260 1130"
+     font-family="DejaVu Sans, Arial, sans-serif">
+  <defs>
+    <style>
+      .box   { stroke-width: 2; rx: 10; }
+      .spine { fill: #e8f0fe; stroke: #1a56db; }
+      .leaf  { fill: #e6f6ec; stroke: #15803d; }
+      .rr    { fill: #f3e8ff; stroke: #7e22ce; }
+      .srv   { fill: #f8fafc; stroke: #475569; }
+      .panel { fill: #ffffff; stroke: #cbd5e1; stroke-width: 1.5; }
+      .t     { font-size: 13px; fill: #0f172a; }
+      .h     { font-size: 16px; font-weight: bold; fill: #0f172a; }
+      .s     { font-size: 11px; fill: #334155; }
+      .m     { font-family: DejaVu Sans Mono, Consolas, monospace; font-size: 11.5px; fill: #0f172a; }
+      .fab   { stroke: #1a56db; stroke-width: 2.5; fill: none; }
+      .rsc   { stroke: #7e22ce; stroke-width: 2.5; fill: none; stroke-dasharray: 9 5; }
+      .r0    { stroke: #0284c7; stroke-width: 2; fill: none; }
+      .r1    { stroke: #ea580c; stroke-width: 2; fill: none; }
+      .lbl   { font-size: 11px; fill: #0f172a; paint-order: stroke; stroke: #ffffff; stroke-width: 4px; }
+    </style>
+  </defs>
+
+  <rect x="0" y="0" width="1260" height="1130" fill="#ffffff"/>
+  <text x="30" y="34" style="font-size:22px;font-weight:bold;fill:#0f172a">HPN Pivot lab: SONiC fabric + FRR route-server cluster (RSC-BGP)</text>
+  <text x="30" y="56" class="s">containerlab "sonic-rr" · leaf/spine BGP unnumbered · leaf↔RSC multihop eBGP loopback↔loopback · GPU service routes = /32 per NIC</text>
+
+  <g transform="translate(30,80)">
+
+    <!-- ================= LINKS ================= -->
+    <g inkscape:groupmode="layer" inkscape:label="links-fabric">
+      <path class="fab" d="M190,300 L370,120"/>
+      <path class="fab" d="M270,300 L790,120"/>
+      <path class="fab" d="M930,300 L430,120"/>
+      <path class="fab" d="M1010,300 L850,120"/>
+      <text class="lbl" x="196" y="285">E0</text>
+      <text class="lbl" x="276" y="285">E4</text>
+      <text class="lbl" x="905" y="285">E0</text>
+      <text class="lbl" x="1018" y="285">E4</text>
+      <text class="lbl" x="352" y="140">E0</text>
+      <text class="lbl" x="432" y="140">E4</text>
+      <text class="lbl" x="770" y="140">E0</text>
+      <text class="lbl" x="852" y="140">E4</text>
+      <text class="lbl" x="560" y="160" style="font-style:italic;fill:#1a56db">unnumbered eBGP (IPv6 link-local, RFC 5549)</text>
+    </g>
+
+    <g inkscape:groupmode="layer" inkscape:label="links-rsc">
+      <path class="rsc" d="M370,320 L510,270"/>
+      <path class="rsc" d="M370,405 L510,380"/>
+      <path class="rsc" d="M880,320 L740,270"/>
+      <path class="rsc" d="M880,405 L740,380"/>
+      <text class="lbl" x="376" y="296">E8 10.2.11.0/31</text>
+      <text class="lbl" x="376" y="380">E12 10.2.12.0/31</text>
+      <text class="lbl" x="770" y="296">10.2.21.0/31 E8</text>
+      <text class="lbl" x="762" y="380">10.2.22.0/31 E12</text>
+    </g>
+
+    <g inkscape:groupmode="layer" inkscape:label="links-rail0-gpu0">
+      <path class="r0" d="M140,430 L165,600"/>
+      <path class="r0" d="M200,430 L445,600"/>
+      <path class="r0" d="M260,430 L725,600"/>
+      <path class="r0" d="M320,430 L1005,600"/>
+      <text class="lbl" x="128" y="447">E16</text>
+      <text class="lbl" x="188" y="447">E20</text>
+      <text class="lbl" x="248" y="447">E24</text>
+      <text class="lbl" x="308" y="447">E28</text>
+    </g>
+
+    <g inkscape:groupmode="layer" inkscape:label="links-rail1-gpu1">
+      <path class="r1" d="M930,430 L255,600"/>
+      <path class="r1" d="M990,430 L535,600"/>
+      <path class="r1" d="M1050,430 L815,600"/>
+      <path class="r1" d="M1110,430 L1095,600"/>
+      <text class="lbl" x="918" y="447">E16</text>
+      <text class="lbl" x="978" y="447">E20</text>
+      <text class="lbl" x="1038" y="447">E24</text>
+      <text class="lbl" x="1098" y="447">E28</text>
+    </g>
+
+    <!-- ================= NODES ================= -->
+    <g inkscape:groupmode="layer" inkscape:label="spines">
+      <rect class="box spine" x="290" y="20" width="240" height="100" rx="10"/>
+      <text class="h" x="305" y="46">spine1 <tspan class="s">(PSW)</tspan></text>
+      <text class="t" x="305" y="68">SONiC-VS · AS 65100</text>
+      <text class="t" x="305" y="88">Lo0 10.0.0.1/32</text>
+      <text class="s" x="305" y="108">no route-maps · no RSC session</text>
+
+      <rect class="box spine" x="710" y="20" width="240" height="100" rx="10"/>
+      <text class="h" x="725" y="46">spine2 <tspan class="s">(PSW)</tspan></text>
+      <text class="t" x="725" y="68">SONiC-VS · AS 65100</text>
+      <text class="t" x="725" y="88">Lo0 10.0.0.2/32</text>
+      <text class="s" x="725" y="108">no route-maps · no RSC session</text>
+    </g>
+
+    <g inkscape:groupmode="layer" inkscape:label="leaves">
+      <rect class="box leaf" x="90" y="300" width="280" height="130" rx="10"/>
+      <text class="h" x="105" y="326">leaf1 <tspan class="s">(ASW)</tspan></text>
+      <text class="t" x="105" y="348">SONiC-VS · AS 65001</text>
+      <text class="t" x="105" y="368">Lo0 10.0.0.11/32</text>
+      <text class="s" x="105" y="388">gpu0 rail: 10.100.1-4.0/31</text>
+      <text class="s" x="105" y="404">advertises 10.100.1-4.1/32</text>
+      <text class="s" x="105" y="420">static 10.0.0.101-102/32 → RRs</text>
+
+      <rect class="box leaf" x="880" y="300" width="280" height="130" rx="10"/>
+      <text class="h" x="895" y="326">leaf2 <tspan class="s">(ASW)</tspan></text>
+      <text class="t" x="895" y="348">SONiC-VS · AS 65002</text>
+      <text class="t" x="895" y="368">Lo0 10.0.0.12/32</text>
+      <text class="s" x="895" y="388">gpu1 rail: 10.100.129-132.0/31</text>
+      <text class="s" x="895" y="404">advertises 10.100.129-132.1/32</text>
+      <text class="s" x="895" y="420">static 10.0.0.101-102/32 → RRs</text>
+    </g>
+
+    <g inkscape:groupmode="layer" inkscape:label="route-servers">
+      <rect class="box rr" x="510" y="230" width="230" height="80" rx="10"/>
+      <text class="h" x="525" y="254">rr1 <tspan class="s">(RSC-BGP · FRR)</tspan></text>
+      <text class="t" x="525" y="274">AS 65500 · lo 10.0.0.101/32</text>
+      <text class="s" x="525" y="294">eth1 10.2.11.1 · eth2 10.2.21.1</text>
+
+      <rect class="box rr" x="510" y="340" width="230" height="80" rx="10"/>
+      <text class="h" x="525" y="364">rr2 <tspan class="s">(RSC-BGP · FRR)</tspan></text>
+      <text class="t" x="525" y="384">AS 65500 · lo 10.0.0.102/32</text>
+      <text class="s" x="525" y="404">eth1 10.2.12.1 · eth2 10.2.22.1</text>
+    </g>
+
+    <g inkscape:groupmode="layer" inkscape:label="gpu-servers">
+      <rect class="box srv" x="110" y="600" width="200" height="105" rx="10"/>
+      <text class="h" x="125" y="626">srv1 <tspan class="s">ubuntu · no BGP</tspan></text>
+      <text class="s" x="125" y="648" style="fill:#0284c7">gpu0 eth1 10.100.1.1/31</text>
+      <text class="s" x="125" y="666" style="fill:#ea580c">gpu1 eth2 10.100.129.1/31</text>
+      <text class="s" x="125" y="688">10.100.0/17→leaf1 · .128/17→leaf2</text>
+
+      <rect class="box srv" x="390" y="600" width="200" height="105" rx="10"/>
+      <text class="h" x="405" y="626">srv2 <tspan class="s">ubuntu · no BGP</tspan></text>
+      <text class="s" x="405" y="648" style="fill:#0284c7">gpu0 eth1 10.100.2.1/31</text>
+      <text class="s" x="405" y="666" style="fill:#ea580c">gpu1 eth2 10.100.130.1/31</text>
+      <text class="s" x="405" y="688">10.100.0/17→leaf1 · .128/17→leaf2</text>
+
+      <rect class="box srv" x="670" y="600" width="200" height="105" rx="10"/>
+      <text class="h" x="685" y="626">srv3 <tspan class="s">ubuntu · no BGP</tspan></text>
+      <text class="s" x="685" y="648" style="fill:#0284c7">gpu0 eth1 10.100.3.1/31</text>
+      <text class="s" x="685" y="666" style="fill:#ea580c">gpu1 eth2 10.100.131.1/31</text>
+      <text class="s" x="685" y="688">10.100.0/17→leaf1 · .128/17→leaf2</text>
+
+      <rect class="box srv" x="950" y="600" width="200" height="105" rx="10"/>
+      <text class="h" x="965" y="626">srv4 <tspan class="s">ubuntu · no BGP</tspan></text>
+      <text class="s" x="965" y="648" style="fill:#0284c7">gpu0 eth1 10.100.4.1/31</text>
+      <text class="s" x="965" y="666" style="fill:#ea580c">gpu1 eth2 10.100.132.1/31</text>
+      <text class="s" x="965" y="688">10.100.0/17→leaf1 · .128/17→leaf2</text>
+    </g>
+
+    <!-- ================= PANELS ================= -->
+    <g inkscape:groupmode="layer" inkscape:label="legend">
+      <rect class="panel" x="0" y="740" width="330" height="290" rx="8"/>
+      <text class="h" x="15" y="766">Legend</text>
+      <path class="fab" d="M15,792 L65,792"/><text class="t" x="75" y="796">leaf↔spine, BGP unnumbered</text>
+      <path class="rsc" d="M15,822 L65,822"/><text class="t" x="75" y="818">leaf↔RR /31 link carrying</text>
+      <text class="t" x="75" y="834">multihop eBGP lo↔lo</text>
+      <path class="r0" d="M15,858 L65,858"/><text class="t" x="75" y="862">rail 0 — gpu0 → leaf1</text>
+      <path class="r1" d="M15,884 L65,884"/><text class="t" x="75" y="888">rail 1 — gpu1 → leaf2</text>
+      <text class="s" x="15" y="920">E = SONiC EthernetN (ethN → Ethernet 4·(N-1))</text>
+      <text class="s" x="15" y="940">RSC sessions: ebgp-multihop 2,</text>
+      <text class="s" x="15" y="956">update-source Loopback0;</text>
+      <text class="s" x="15" y="972">RR: route-server-client +</text>
+      <text class="s" x="15" y="988">attribute-unchanged next-hop</text>
+      <text class="s" x="15" y="1012">mgmt: eth0 172.20.20.0/24 (containerlab)</text>
+    </g>
+
+    <g inkscape:groupmode="layer" inkscape:label="leaf-policy">
+      <rect class="panel" x="345" y="740" width="460" height="290" rx="8"/>
+      <text class="h" x="360" y="766">Leaf policy (all filtering lives on the leaves)</text>
+      <text class="m" x="360" y="794">FABRIC out  TO-SPINE   own loopback only</text>
+      <text class="m" x="360" y="810">                       (+ own GPU /32s if MODE=pivot)</text>
+      <text class="m" x="360" y="832">FABRIC in   FROM-SPINE loopbacks only</text>
+      <text class="m" x="360" y="854">RSC    out  TO-RSC     GPU /32s, next-hop := own Lo0</text>
+      <text class="m" x="360" y="876">RSC    in   FROM-RSC   GPU /32s only</text>
+      <text class="s" x="360" y="906">Result on leaf1 for a remote GPU:</text>
+      <text class="m" x="360" y="926">B&gt; 10.100.130.1/32 via 10.0.0.12 (recursive)</text>
+      <text class="m" x="360" y="942">     * via fe80::spine1, Ethernet0</text>
+      <text class="m" x="360" y="958">     * via fe80::spine2, Ethernet4</text>
+      <text class="s" x="360" y="982">2 BGP paths (rr1, rr2), AS path 65002, 0 paths from spines.</text>
+      <text class="s" x="360" y="1000">The RR only relays routes and is never in the packet path.</text>
+    </g>
+
+    <g inkscape:groupmode="layer" inkscape:label="modes">
+      <rect class="panel" x="820" y="740" width="380" height="290" rx="8"/>
+      <text class="h" x="835" y="766">Modes (configure.sh MODE=…)</text>
+      <text class="t" x="835" y="794" style="font-weight:bold">strict (default)</text>
+      <text class="s" x="835" y="812">spines: 0 GPU routes (loopbacks only)</text>
+      <text class="s" x="835" y="828">same-rail gpu0↔gpu0: OK (stays on leaf)</text>
+      <text class="s" x="835" y="844" style="fill:#b91c1c">cross-rail: blackholed at spine</text>
+      <text class="s" x="835" y="860">→ why MRC needs SRv6 encap</text>
+      <text class="t" x="835" y="892" style="font-weight:bold">pivot (Alibaba HPN Pivot)</text>
+      <text class="s" x="835" y="910">spines: 8 GPU /32s, 1 path each, from owner leaf</text>
+      <text class="s" x="835" y="926">leaves still learn GPUs only from the RSC</text>
+      <text class="s" x="835" y="942" style="fill:#15803d">cross-rail: OK</text>
+      <text class="m" x="835" y="962">gpu0 → leaf1 → spine2 (10.0.0.2)</text>
+      <text class="m" x="835" y="978">     → leaf2 (10.0.0.12) → gpu1</text>
+      <text class="s" x="835" y="1008">ToR paths per GPU: #spines → #RSC (200 → 4)</text>
+    </g>
+  </g>
+</svg>

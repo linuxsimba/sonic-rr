@@ -1,0 +1,68 @@
+name: sonic-rr
+
+# Port map (sonic-vs: ethN -> Ethernet(4*(N-1)))
+#   leaf : eth1/Ethernet0 spine1, eth2/Ethernet4 spine2, eth3/Ethernet8 rr1, eth4/Ethernet12 rr2,
+#          eth5..eth8 / Ethernet16..28 -> srv1..srv4
+#   spine: eth1/Ethernet0 leaf1, eth2/Ethernet4 leaf2
+#   rr   : eth1 leaf1, eth2 leaf2
+#   srv  : eth1 = gpu0 (rail 0, leaf1), eth2 = gpu1 (rail 1, leaf2)
+
+topology:
+  kinds:
+    sonic-vs:
+      image: docker-sonic-vs:latest
+    linux:
+      image: gpu-server:latest
+      cmd: sleep infinity
+
+  nodes:
+    spine1: {kind: sonic-vs}
+    spine2: {kind: sonic-vs}
+    leaf1:  {kind: sonic-vs}
+    leaf2:  {kind: sonic-vs}
+
+    rr1:
+      kind: linux
+      image: quay.io/frrouting/frr:10.2.1
+      cmd: /usr/lib/frr/docker-start
+      binds:
+        - rr/daemons:/etc/frr/daemons
+        - rr/rr1.conf:/etc/frr/frr.conf
+    rr2:
+      kind: linux
+      image: quay.io/frrouting/frr:10.2.1
+      cmd: /usr/lib/frr/docker-start
+      binds:
+        - rr/daemons:/etc/frr/daemons
+        - rr/rr2.conf:/etc/frr/frr.conf
+
+    srv1:
+      kind: linux
+      exec: ["bash -c 'N=1; ip addr add 10.100.$N.1/31 dev eth1; ip addr add 10.100.$((128+N)).1/31 dev eth2; ip route add 10.100.0.0/17 via 10.100.$N.0 dev eth1; ip route add 10.100.128.0/17 via 10.100.$((128+N)).0 dev eth2; ip rule add from 10.100.$N.1 table 100; ip route add default via 10.100.$N.0 dev eth1 table 100; ip rule add from 10.100.$((128+N)).1 table 101; ip route add default via 10.100.$((128+N)).0 dev eth2 table 101'"]
+    srv2:
+      kind: linux
+      exec: ["bash -c 'N=2; ip addr add 10.100.$N.1/31 dev eth1; ip addr add 10.100.$((128+N)).1/31 dev eth2; ip route add 10.100.0.0/17 via 10.100.$N.0 dev eth1; ip route add 10.100.128.0/17 via 10.100.$((128+N)).0 dev eth2; ip rule add from 10.100.$N.1 table 100; ip route add default via 10.100.$N.0 dev eth1 table 100; ip rule add from 10.100.$((128+N)).1 table 101; ip route add default via 10.100.$((128+N)).0 dev eth2 table 101'"]
+    srv3:
+      kind: linux
+      exec: ["bash -c 'N=3; ip addr add 10.100.$N.1/31 dev eth1; ip addr add 10.100.$((128+N)).1/31 dev eth2; ip route add 10.100.0.0/17 via 10.100.$N.0 dev eth1; ip route add 10.100.128.0/17 via 10.100.$((128+N)).0 dev eth2; ip rule add from 10.100.$N.1 table 100; ip route add default via 10.100.$N.0 dev eth1 table 100; ip rule add from 10.100.$((128+N)).1 table 101; ip route add default via 10.100.$((128+N)).0 dev eth2 table 101'"]
+    srv4:
+      kind: linux
+      exec: ["bash -c 'N=4; ip addr add 10.100.$N.1/31 dev eth1; ip addr add 10.100.$((128+N)).1/31 dev eth2; ip route add 10.100.0.0/17 via 10.100.$N.0 dev eth1; ip route add 10.100.128.0/17 via 10.100.$((128+N)).0 dev eth2; ip rule add from 10.100.$N.1 table 100; ip route add default via 10.100.$N.0 dev eth1 table 100; ip rule add from 10.100.$((128+N)).1 table 101; ip route add default via 10.100.$((128+N)).0 dev eth2 table 101'"]
+
+  links:
+    - endpoints: ["leaf1:eth1", "spine1:eth1"]
+    - endpoints: ["leaf1:eth2", "spine2:eth1"]
+    - endpoints: ["leaf2:eth1", "spine1:eth2"]
+    - endpoints: ["leaf2:eth2", "spine2:eth2"]
+    - endpoints: ["leaf1:eth3", "rr1:eth1"]
+    - endpoints: ["leaf1:eth4", "rr2:eth1"]
+    - endpoints: ["leaf2:eth3", "rr1:eth2"]
+    - endpoints: ["leaf2:eth4", "rr2:eth2"]
+    - endpoints: ["leaf1:eth5", "srv1:eth1"]
+    - endpoints: ["leaf1:eth6", "srv2:eth1"]
+    - endpoints: ["leaf1:eth7", "srv3:eth1"]
+    - endpoints: ["leaf1:eth8", "srv4:eth1"]
+    - endpoints: ["leaf2:eth5", "srv1:eth2"]
+    - endpoints: ["leaf2:eth6", "srv2:eth2"]
+    - endpoints: ["leaf2:eth7", "srv3:eth2"]
+    - endpoints: ["leaf2:eth8", "srv4:eth2"]
