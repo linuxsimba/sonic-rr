@@ -2,6 +2,7 @@ clab-*/
 gnmi/run-*/
 images/
 __pycache__/
+.pytest_cache/
 results/
 .topo.clab.yml.bak
 .venv/
