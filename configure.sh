@@ -7,12 +7,12 @@
 #                         routes (same-rail works, cross-rail blackholes at the spine)
 #   MODE=traditional      classic leaf/spine: spines relay every GPU route to every leaf,
 #                         RSC sessions shut -> each leaf learns each GPU from every spine
-#   BFD=off (default) | on   BFD (FAST profile) on every BGP session
+#   BFD=on (default) | off   BFD (FAST profile) on every BGP session
 #   SPINES=8                 number of spines (spine1..spineN)
 # Safe to re-run on a running lab to switch MODE/BFD.
 set -euo pipefail
 MODE=${MODE:-pivot}
-BFD=${BFD:-off}
+BFD=${BFD:-on}
 SPINES=${SPINES:-8}
 LAB=clab-sonic-rr
 TMP=$(mktemp -d)
